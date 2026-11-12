@@ -4,40 +4,62 @@ import { signOut } from "@/app/actions/auth";
 
 export function SiteHeader({ user }: { user: User | null }) {
   return (
-    <header className="relative z-10 border-b border-[rgba(20,53,44,0.08)] bg-[rgba(238,243,240,0.75)] backdrop-blur-md">
-      <div className="mx-auto flex max-w-6xl items-center justify-between gap-4 px-5 py-4">
-        <Link href={user ? "/dashboard" : "/"} className="group">
-          <span className="font-display brand-mark text-2xl text-pine transition-colors group-hover:text-moss">
-            Gift Registry
-          </span>
-        </Link>
-        <nav className="flex items-center gap-3 text-sm">
-          {user ? (
-            <>
-              <span className="hidden text-muted sm:inline">
-                {user.display_name}
-              </span>
-              <Link href="/dashboard" className="btn btn-ghost py-2 text-sm">
-                Groups
+    <header className="site-header">
+      <table cellPadding={0} cellSpacing={0} width="100%">
+        <tbody>
+          <tr>
+            <td valign="middle" style={{ width: 48 }}>
+              <div
+                aria-hidden
+                style={{
+                  width: 40,
+                  height: 40,
+                  background: "#000080",
+                  border: "1px solid #000",
+                  color: "#fff",
+                  fontWeight: 700,
+                  fontSize: 18,
+                  textAlign: "center",
+                  lineHeight: "40px",
+                }}
+              >
+                GR
+              </div>
+            </td>
+            <td valign="middle">
+              <Link href={user ? "/dashboard" : "/"} className="brand-kicker">
+                Family{" "}
+                <span className="brand-title">Gift Registry</span>
               </Link>
-              <form action={signOut}>
-                <button type="submit" className="btn btn-ghost py-2 text-sm">
-                  Sign out
-                </button>
-              </form>
-            </>
-          ) : (
-            <>
-              <Link href="/login" className="btn btn-ghost py-2 text-sm">
-                Sign in
-              </Link>
-              <Link href="/signup" className="btn btn-primary py-2 text-sm">
-                Create account
-              </Link>
-            </>
-          )}
-        </nav>
-      </div>
+            </td>
+            <td valign="middle" align="right">
+              {user ? (
+                <span style={{ fontSize: 12 }}>
+                  {user.display_name}
+                  {" · "}
+                  <Link href="/dashboard">Home</Link>
+                  {" · "}
+                  <Link href="/faq">FAQ</Link>
+                  {" · "}
+                  <form action={signOut} style={{ display: "inline" }}>
+                    <button type="submit" className="btn" style={{ marginLeft: 4 }}>
+                      Log Out
+                    </button>
+                  </form>
+                </span>
+              ) : (
+                <span style={{ fontSize: 12 }}>
+                  <Link href="/faq">FAQ</Link>
+                  {" · "}
+                  <Link href="/login">Sign in</Link>
+                  {" · "}
+                  <Link href="/signup">Create account</Link>
+                </span>
+              )}
+            </td>
+          </tr>
+        </tbody>
+      </table>
     </header>
   );
 }

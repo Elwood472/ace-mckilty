@@ -10,6 +10,7 @@ import {
   type ActionState,
 } from "@/app/actions/groups";
 import { createTogetherList, saveBudget } from "@/app/actions/lists";
+import { createCouple } from "@/app/actions/couples";
 import { CsrfField } from "@/components/csrf-field";
 import { Flash } from "@/components/flash";
 
@@ -79,9 +80,12 @@ export function TogetherListForm({
       />
       <fieldset>
         <legend className="label">Also owns this list</legend>
-        <div className="max-h-40 space-y-1 overflow-auto rounded-lg border border-[rgba(20,53,44,0.1)] bg-white/60 p-2">
+        <div
+          className="max-h-40 space-y-1 overflow-auto p-2"
+          style={{ border: "1px solid #000" }}
+        >
           {members.length === 0 ? (
-            <p className="text-sm text-muted">Invite others first.</p>
+            <p>Invite others first.</p>
           ) : (
             members.map((m) => (
               <label key={m.id} className="flex items-center gap-2 text-sm">
@@ -94,6 +98,64 @@ export function TogetherListForm({
       </fieldset>
       <button type="submit" className="btn btn-primary" disabled={pending}>
         {pending ? "Creating…" : "Create together list"}
+      </button>
+    </form>
+  );
+}
+
+export function CoupleForm({
+  csrf,
+  groupId,
+  members,
+}: {
+  csrf: string;
+  groupId: string;
+  members: { id: string; display_name: string }[];
+}) {
+  const [state, action, pending] = useActionState(createCouple, initial);
+  return (
+    <form action={action} className="mt-3 space-y-3">
+      <CsrfField token={csrf} />
+      <input type="hidden" name="groupId" value={groupId} />
+      <Flash error={state.error} ok={state.ok} />
+      <label className="label" htmlFor="coupleLabel">
+        Label
+      </label>
+      <input
+        id="coupleLabel"
+        name="label"
+        className="field"
+        placeholder="Mom & Dad"
+        required
+      />
+      <label className="label" htmlFor="userA">
+        Person A
+      </label>
+      <select id="userA" name="userA" className="field" required>
+        <option value="">Select…</option>
+        {members.map((m) => (
+          <option key={m.id} value={m.id}>
+            {m.display_name}
+          </option>
+        ))}
+      </select>
+      <label className="label" htmlFor="userB">
+        Person B
+      </label>
+      <select id="userB" name="userB" className="field" required>
+        <option value="">Select…</option>
+        {members.map((m) => (
+          <option key={m.id} value={m.id}>
+            {m.display_name}
+          </option>
+        ))}
+      </select>
+      <label className="label" htmlFor="anniversary">
+        Anniversary
+      </label>
+      <input id="anniversary" name="anniversary" type="date" className="field" />
+      <button type="submit" className="btn btn-primary" disabled={pending}>
+        {pending ? "Saving…" : "Save couple"}
       </button>
     </form>
   );

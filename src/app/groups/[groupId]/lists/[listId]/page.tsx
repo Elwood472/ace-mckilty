@@ -94,89 +94,77 @@ export default async function ListPage({ params, searchParams }: Props) {
   return (
     <>
       <SiteHeader user={user} />
-      <main className="relative z-10 mx-auto w-full max-w-6xl flex-1 px-5 py-10">
-        <div className="fade-up mb-6">
-          <Link
-            href={`/groups/${groupId}`}
-            className="text-sm text-muted hover:text-pine"
-          >
-            ← {list.title ? "Back to group" : "Group"}
-          </Link>
-          <div className="mt-2 flex flex-wrap items-end justify-between gap-4">
-            <div>
-              <h1 className="font-display text-4xl text-pine sm:text-5xl">
-                {list.title}
-              </h1>
-              <p className="mt-2 text-muted">
-                {list.list_type === "together" ? "Together list" : "Personal list"}{" "}
-                · {owners.map((o) => o.display_name).join(", ")}
-                {owner
-                  ? " · You own this list (purchase status is hidden from you)"
-                  : ""}
-              </p>
+      <main className="site-main">
+        <p>
+          <Link href={`/groups/${groupId}`}>← Back to group</Link>
+          {" · "}
+          <Link href="/dashboard">Home</Link>
+          {" · "}
+          <Link href="/bought">View Gifts I Bought</Link>
+        </p>
+        <h1 className="brand-title" style={{ fontSize: 22, marginTop: 8 }}>
+          {list.title}
+        </h1>
+        <p>
+          {list.list_type === "together" ? "Together list" : "Personal list"} ·{" "}
+          {owners.map((o) => o.display_name).join(", ")}
+          {owner
+            ? " · You own this list (purchase status is hidden from you)"
+            : ""}
+        </p>
+
+        <div style={{ display: "flex", gap: 20, flexWrap: "wrap", marginTop: 14 }}>
+          <div className="panel" style={{ minWidth: 180 }}>
+            <div className="panel-head">Categories</div>
+            <div style={{ padding: 8 }}>
+              <ul style={{ margin: 0, paddingLeft: 16 }}>
+                <li>
+                  <Link href={`/groups/${groupId}/lists/${listId}`}>
+                    {!category ? <b>All</b> : "All"} (
+                    {toc.reduce((n, c) => n + c.count, 0)})
+                  </Link>
+                </li>
+                {toc.map((c) => {
+                  const catValue =
+                    c.category === "Uncategorized" ? "__none__" : c.category;
+                  const active =
+                    (c.category === "Uncategorized" && category === "") ||
+                    category === c.category;
+                  return (
+                    <li key={c.category}>
+                      <Link
+                        href={`/groups/${groupId}/lists/${listId}?category=${encodeURIComponent(catValue)}`}
+                      >
+                        {active ? <b>{c.category}</b> : c.category} ({c.count})
+                      </Link>
+                    </li>
+                  );
+                })}
+              </ul>
             </div>
-            <Link
-              href={`/groups/${groupId}/bought`}
-              className="btn btn-ghost text-sm"
-            >
-              Gifts I bought
-            </Link>
           </div>
-        </div>
 
-        <div className="grid gap-8 lg:grid-cols-[220px_1fr]">
-          <aside className="surface fade-up-delay h-fit rounded-2xl p-5">
-            <h2 className="font-display text-lg text-pine">Categories</h2>
-            <ul className="mt-3 space-y-1 text-sm">
-              <li>
-                <Link
-                  href={`/groups/${groupId}/lists/${listId}`}
-                  className={!category ? "font-semibold text-amber-deep" : "text-muted hover:text-pine"}
-                >
-                  All ({toc.reduce((n, c) => n + c.count, 0)})
-                </Link>
-              </li>
-              {toc.map((c) => {
-                const catValue =
-                  c.category === "Uncategorized" ? "__none__" : c.category;
-                const active =
-                  (c.category === "Uncategorized" && category === "") ||
-                  category === c.category;
-                return (
-                  <li key={c.category}>
-                    <Link
-                      href={`/groups/${groupId}/lists/${listId}?category=${encodeURIComponent(catValue)}`}
-                      className={
-                        active
-                          ? "font-semibold text-amber-deep"
-                          : "text-muted hover:text-pine"
-                      }
-                    >
-                      {c.category} ({c.count})
-                    </Link>
-                  </li>
-                );
-              })}
-            </ul>
-          </aside>
-
-          <section className="space-y-6">
-            <div className="surface fade-up-delay rounded-2xl p-5">
-              <ListFilters
-                groupId={groupId}
-                listId={listId}
-                sort={sort}
-                dir={dir}
-                q={q ?? ""}
-                minPrice={one(sp.minPrice)}
-                maxPrice={one(sp.maxPrice)}
-                category={category}
-                useBudget={useBudget}
-                budget={budget}
-              />
+          <div style={{ flex: "1 1 560px" }}>
+            <div className="panel" style={{ width: "100%", marginBottom: 12 }}>
+              <div className="panel-head">Filters</div>
+              <div style={{ padding: 10 }}>
+                <ListFilters
+                  groupId={groupId}
+                  listId={listId}
+                  sort={sort}
+                  dir={dir}
+                  q={q ?? ""}
+                  minPrice={one(sp.minPrice)}
+                  maxPrice={one(sp.maxPrice)}
+                  category={category}
+                  useBudget={useBudget}
+                  budget={budget}
+                />
+              </div>
             </div>
 
-            <div className="surface fade-up-delay-2 overflow-hidden rounded-2xl">
+            <div className="panel" style={{ width: "100%", marginBottom: 12 }}>
+              <div className="panel-head">Gifts</div>
               <ItemTable
                 items={items}
                 owner={owner}
@@ -188,17 +176,15 @@ export default async function ListPage({ params, searchParams }: Props) {
               />
             </div>
 
-            {owner && (
-              <div className="surface fade-up-delay-2 rounded-2xl p-6">
-                <h2 className="font-display text-2xl text-pine">Add item</h2>
-                <AddItemForm
-                  csrf={csrf}
-                  listId={listId}
-                  members={members}
-                />
+            {owner ? (
+              <div className="panel" style={{ width: "100%" }}>
+                <div className="panel-head">Add a New Gift</div>
+                <div style={{ padding: 10 }}>
+                  <AddItemForm csrf={csrf} listId={listId} members={members} />
+                </div>
               </div>
-            )}
-          </section>
+            ) : null}
+          </div>
         </div>
       </main>
     </>

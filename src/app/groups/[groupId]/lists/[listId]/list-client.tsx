@@ -169,23 +169,23 @@ export function ItemTable({
 
   return (
     <div className="overflow-x-auto">
-      <table className="w-full min-w-[720px] text-left text-sm">
-        <thead className="bg-pine text-[#eef6f1]">
+      <table className="legacy-table" style={{ minWidth: 720 }}>
+        <thead>
           <tr>
-            <th className="px-4 py-3 font-semibold">
+            <th>
               <SortHeader label="Item" col="title" sort={sort} dir={dir} groupId={groupId} listId={listId} />
             </th>
-            <th className="px-4 py-3 font-semibold">
+            <th>
               <SortHeader label="Category" col="category" sort={sort} dir={dir} groupId={groupId} listId={listId} />
             </th>
-            <th className="px-4 py-3 font-semibold text-right">
+            <th>
               <SortHeader label="Price" col="price" sort={sort} dir={dir} groupId={groupId} listId={listId} />
             </th>
-            <th className="px-4 py-3 font-semibold">Qty</th>
-            <th className="px-4 py-3 font-semibold">
+            <th>Qty</th>
+            <th>
               <SortHeader label="When" col="display_date" sort={sort} dir={dir} groupId={groupId} listId={listId} />
             </th>
-            <th className="px-4 py-3 font-semibold">Status / action</th>
+            <th>Action</th>
           </tr>
         </thead>
         <tbody>
@@ -295,12 +295,12 @@ function ItemRow({
             <Flash error={deleteState.error} />
           </form>
         ) : item.is_taken && !item.i_bought ? (
-          <span className="font-semibold text-danger">Taken</span>
+          <span className="taken-text">Purchased</span>
         ) : item.i_bought ? (
           <form action={unpurchaseAction} className="space-y-1">
             <CsrfField token={csrf} />
             <input type="hidden" name="itemId" value={item.id} />
-            <p className="font-semibold text-moss">You marked this</p>
+            <p className="taken-text">You marked this</p>
             <button
               type="submit"
               className="text-xs font-semibold text-pine underline"

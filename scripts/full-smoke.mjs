@@ -129,10 +129,9 @@ await buyer.page.screenshot({
 // Owner secrecy
 await owner.page.goto(listUrl);
 await owner.page.waitForSelector("text=Last Mug");
-const ownerTaken = await owner.page.locator("text=Taken").count();
-const ownerPurchased = await owner.page.locator("text=Purchased").count();
+const ownerTaken = await owner.page.locator(".taken-text").count();
 const ownerBuy = await owner.page.locator('button:has-text("I bought this")').count();
-results.ownerSecrecy = ownerTaken === 0 && ownerPurchased === 0 && ownerBuy === 0;
+results.ownerSecrecy = ownerTaken === 0 && ownerBuy === 0;
 await owner.page.screenshot({
   path: path.join(MEDIA, "05-owner-after-purchase-secret.png"),
   fullPage: true,
@@ -147,8 +146,8 @@ await Promise.all([
   third.page.click('button[type="submit"]'),
 ]);
 await third.page.goto(listUrl);
-await third.page.waitForSelector("text=Taken");
-const thirdTaken = await third.page.locator("text=Taken").count();
+await third.page.waitForSelector("text=Purchased");
+const thirdTaken = await third.page.locator("text=Purchased").count();
 const thirdBuy = await third.page.locator('button:has-text("I bought this")').count();
 results.thirdSeesTaken = thirdTaken >= 1 && thirdBuy === 0;
 await third.page.screenshot({

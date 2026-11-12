@@ -7,6 +7,7 @@ import { getCurrentUser } from "@/lib/session";
 import { isGroupMember, isGroupOwner } from "@/lib/authz";
 import {
   BudgetForm,
+  CoupleForm,
   InviteForms,
   LeaveForm,
   MemberRemoveForm,
@@ -89,117 +90,136 @@ export default async function GroupPage({ params }: Props) {
   return (
     <>
       <SiteHeader user={user} />
-      <main className="relative z-10 mx-auto w-full max-w-6xl flex-1 px-5 py-10">
-        <div className="fade-up mb-8">
-          <Link href="/dashboard" className="text-sm text-muted hover:text-pine">
-            ← Groups
-          </Link>
-          <h1 className="mt-2 font-display text-4xl text-pine sm:text-5xl">
-            {group.name}
-          </h1>
-          <p className="mt-2 text-muted">
-            Invite code:{" "}
-            <code className="rounded bg-white/70 px-2 py-0.5 font-semibold text-ink">
-              {group.invite_code}
-            </code>
-          </p>
-        </div>
+      <main className="site-main">
+        <p>
+          <Link href="/dashboard">← Home</Link>
+        </p>
+        <h1 className="brand-title" style={{ fontSize: 22 }}>
+          {group.name}
+        </h1>
+        <p>
+          Invite code: <b>{group.invite_code}</b>
+          {" · "}
+          <Link href="/bought">Gifts I Bought</Link>
+        </p>
 
-        <div className="grid gap-8 lg:grid-cols-[1.5fr_1fr]">
-          <section className="space-y-8">
-            <div className="surface fade-up-delay rounded-2xl p-6">
-              <div className="mb-4 flex items-end justify-between gap-3">
-                <h2 className="font-display text-2xl text-pine">Wish lists</h2>
+        <div style={{ display: "flex", gap: 24, flexWrap: "wrap", marginTop: 16 }}>
+          <div style={{ flex: "1 1 420px" }}>
+            <div className="panel" style={{ width: "100%", marginBottom: 16 }}>
+              <div className="panel-head">Wish lists</div>
+              <div style={{ padding: 10 }}>
                 <BudgetForm
                   csrf={csrf}
                   groupId={groupId}
                   amount={budget[0]?.amount ?? ""}
                 />
+                <table className="legacy-table" style={{ marginTop: 8 }}>
+                  <thead>
+                    <tr>
+                      <th>List</th>
+                      <th>Type</th>
+                      <th>Owners</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {lists.map((l) => (
+                      <tr key={l.id}>
+                        <td>
+                          <Link href={`/groups/${groupId}/lists/${l.id}`}>
+                            {l.title}
+                          </Link>
+                        </td>
+                        <td>{l.list_type === "together" ? "Together" : "Personal"}</td>
+                        <td>{l.owners}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
               </div>
-              <ul className="divide-y divide-[rgba(20,53,44,0.08)]">
-                {lists.map((l) => (
-                  <li key={l.id}>
-                    <Link
-                      href={`/groups/${groupId}/lists/${l.id}`}
-                      className="row-hover flex items-center justify-between gap-3 rounded-lg px-2 py-4"
-                    >
-                      <div>
-                        <p className="font-semibold text-ink">{l.title}</p>
-                        <p className="text-sm text-muted">
-                          {l.list_type === "together" ? "Together" : "Personal"} ·{" "}
-                          {l.owners}
-                        </p>
-                      </div>
-                      <span className="text-amber">View →</span>
-                    </Link>
-                  </li>
-                ))}
-              </ul>
             </div>
 
-            <div className="surface fade-up-delay rounded-2xl p-6">
-              <h2 className="font-display text-2xl text-pine">Together list</h2>
-              <p className="mt-1 text-sm text-muted">
-                Shared list for two or more members (e.g. Mom &amp; Dad).
-              </p>
-              <TogetherListForm
-                csrf={csrf}
-                groupId={groupId}
-                members={members.filter((m) => m.id !== user.id)}
-              />
-            </div>
-          </section>
-
-          <aside className="space-y-6 fade-up-delay-2">
-            <div className="surface rounded-2xl p-6">
-              <h2 className="font-display text-xl text-pine">Members</h2>
-              <ul className="mt-3 space-y-2">
-                {members.map((m) => (
-                  <li
-                    key={m.id}
-                    className="flex items-center justify-between gap-2 text-sm"
-                  >
-                    <div>
-                      <p className="font-semibold text-ink">{m.display_name}</p>
-                      <p className="text-muted">{m.role}</p>
-                    </div>
-                    {owner && m.id !== user.id && (
-                      <MemberRemoveForm
-                        csrf={csrf}
-                        groupId={groupId}
-                        userId={m.id}
-                      />
-                    )}
-                  </li>
-                ))}
-              </ul>
-              {!owner && (
-                <LeaveForm csrf={csrf} groupId={groupId} />
-              )}
+            <div className="panel" style={{ width: "100%", marginBottom: 16 }}>
+              <div className="panel-head">Couple + anniversary</div>
+              <div style={{ padding: 10 }}>
+                <p style={{ marginTop: 0 }}>
+                  Creates a couple row on the home page (sorted by upcoming
+                  anniversary) and a together list if needed.
+                </p>
+                <CoupleForm csrf={csrf} groupId={groupId} members={members} />
+              </div>
             </div>
 
-            <div className="surface rounded-2xl p-6">
-              <h2 className="font-display text-xl text-pine">Find people</h2>
-              <UserSearchPanel csrf={csrf} groupId={groupId} />
+            <div className="panel" style={{ width: "100%" }}>
+              <div className="panel-head">Together list (2+ owners)</div>
+              <div style={{ padding: 10 }}>
+                <TogetherListForm
+                  csrf={csrf}
+                  groupId={groupId}
+                  members={members.filter((m) => m.id !== user.id)}
+                />
+              </div>
+            </div>
+          </div>
+
+          <div style={{ flex: "0 1 320px" }}>
+            <div className="panel" style={{ width: "100%", marginBottom: 16 }}>
+              <div className="panel-head">Members</div>
+              <div style={{ padding: 10 }}>
+                <table className="legacy-table">
+                  <thead>
+                    <tr>
+                      <th>Name</th>
+                      <th>Role</th>
+                      <th></th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {members.map((m) => (
+                      <tr key={m.id}>
+                        <td>
+                          <Link href={`/profile/${m.id}`}>{m.display_name}</Link>
+                        </td>
+                        <td>{m.role}</td>
+                        <td>
+                          {owner && m.id !== user.id ? (
+                            <MemberRemoveForm
+                              csrf={csrf}
+                              groupId={groupId}
+                              userId={m.id}
+                            />
+                          ) : null}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+                {!owner ? <LeaveForm csrf={csrf} groupId={groupId} /> : null}
+              </div>
             </div>
 
-            <div className="surface rounded-2xl p-6">
-              <h2 className="font-display text-xl text-pine">Invites</h2>
-              <InviteForms csrf={csrf} groupId={groupId} />
-              {invites.length > 0 && (
-                <ul className="mt-4 space-y-2 text-sm">
-                  {invites.map((inv) => (
-                    <li key={inv.id} className="rounded-lg bg-white/60 px-3 py-2">
-                      <p className="font-medium text-ink">
-                        {inv.email ?? "Open invite"}
-                      </p>
-                      <p className="break-all text-muted">/invite/{inv.token}</p>
-                    </li>
-                  ))}
-                </ul>
-              )}
+            <div className="panel" style={{ width: "100%", marginBottom: 16 }}>
+              <div className="panel-head">Find people</div>
+              <div style={{ padding: 10 }}>
+                <UserSearchPanel csrf={csrf} groupId={groupId} />
+              </div>
             </div>
-          </aside>
+
+            <div className="panel" style={{ width: "100%" }}>
+              <div className="panel-head">Invites</div>
+              <div style={{ padding: 10 }}>
+                <InviteForms csrf={csrf} groupId={groupId} />
+                {invites.length > 0 ? (
+                  <ul style={{ paddingLeft: 18 }}>
+                    {invites.map((inv) => (
+                      <li key={inv.id}>
+                        {inv.email ?? "Open invite"} — /invite/{inv.token}
+                      </li>
+                    ))}
+                  </ul>
+                ) : null}
+              </div>
+            </div>
+          </div>
         </div>
       </main>
     </>

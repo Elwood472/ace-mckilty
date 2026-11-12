@@ -12,11 +12,10 @@ export default async function SignupPage() {
   return (
     <>
       <SiteHeader user={null} />
-      <main className="relative z-10 flex flex-1 flex-col items-center justify-center px-5 py-12">
-        <div className="mb-8 text-center fade-up">
-          <p className="font-display brand-mark text-4xl text-pine">Gift Registry</p>
-          <h1 className="mt-3 text-xl text-muted">Create your account</h1>
-        </div>
+      <main className="site-main">
+        <p className="brand-title" style={{ fontSize: 22, marginBottom: 12 }}>
+          Create your account
+        </p>
         <AuthForm mode="signup" csrf={csrf} />
       </main>
     </>

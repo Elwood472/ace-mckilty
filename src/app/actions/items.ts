@@ -208,11 +208,92 @@ export async function deleteItem(
     );
     if (!items.length) return { error: "Item not found." };
     await requireListOwner(items[0].list_id, user.id);
-    await sql("delete from items where id = $1", [itemId]);
+    await sql(
+      `update items set deleted = true, deleted_at = now(), updated_at = now()
+       where id = $1`,
+      [itemId],
+    );
     await revalidateList(items[0].list_id);
-    return { ok: "Item deleted." };
+    revalidatePath("/removed");
+    revalidatePath("/dashboard");
+    return { ok: "Item removed (can put back from Removed)." };
   } catch {
-    return { error: "Could not delete item." };
+    return { error: "Could not remove item." };
+  }
+}
+
+export async function restoreItem(
+  _prev: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  try {
+    await assertCsrf(formData.get("csrf"));
+    const user = await requireUser();
+    const itemId = s(formData, "itemId");
+    const items = await sql<{ list_id: string }>(
+      "select list_id from items where id = $1 and deleted = true",
+      [itemId],
+    );
+    if (!items.length) return { error: "Item not found." };
+    await requireListOwner(items[0].list_id, user.id);
+    await sql(
+      `update items set deleted = false, deleted_at = null, updated_at = now()
+       where id = $1`,
+      [itemId],
+    );
+    await revalidateList(items[0].list_id);
+    revalidatePath("/removed");
+    revalidatePath("/dashboard");
+    return { ok: "Put back on your list." };
+  } catch {
+    return { error: "Could not put item back." };
+  }
+}
+
+export async function purgeRemovedItem(
+  _prev: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  try {
+    await assertCsrf(formData.get("csrf"));
+    const user = await requireUser();
+    const itemId = s(formData, "itemId");
+    const items = await sql<{ list_id: string }>(
+      "select list_id from items where id = $1 and deleted = true",
+      [itemId],
+    );
+    if (!items.length) return { error: "Item not found." };
+    await requireListOwner(items[0].list_id, user.id);
+    await sql(
+      `update items set user_purged = true, updated_at = now() where id = $1`,
+      [itemId],
+    );
+    revalidatePath("/removed");
+    return { ok: "Purged from removed list." };
+  } catch {
+    return { error: "Could not purge item." };
+  }
+}
+
+export async function purgeBoughtItem(
+  _prev: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  try {
+    await assertCsrf(formData.get("csrf"));
+    const user = await requireUser();
+    const purchaseId = s(formData, "purchaseId");
+    const rows = await sql(
+      `update purchases set buyer_purged = true
+       where id = $1 and buyer_user_id = $2
+       returning id`,
+      [purchaseId, user.id],
+    );
+    if (!rows.length) return { error: "Not your purchase." };
+    revalidatePath("/bought");
+    return { ok: "Cleared from gifts you bought." };
+  } catch {
+    return { error: "Could not purge." };
   }
 }
 

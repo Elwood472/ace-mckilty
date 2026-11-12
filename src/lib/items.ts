@@ -51,7 +51,7 @@ export async function listVisibleItems(
   const ownerIds = await getListOwnerIds(listId);
 
   const params: unknown[] = [listId, viewerId];
-  const where: string[] = ["i.list_id = $1"];
+  const where: string[] = ["i.list_id = $1", "i.deleted = false"];
 
   // Restricted: owners always see; others only if listed as viewer
   where.push(
