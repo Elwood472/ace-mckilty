@@ -9,49 +9,11 @@ import {
   searchUsers,
   type ActionState,
 } from "@/app/actions/groups";
-import { createTogetherList, saveBudget } from "@/app/actions/lists";
-import { createCouple } from "@/app/actions/couples";
+import { createTogetherList } from "@/app/actions/lists";
 import { CsrfField } from "@/components/csrf-field";
 import { Flash } from "@/components/flash";
 
 const initial: ActionState = {};
-
-export function BudgetForm({
-  csrf,
-  groupId,
-  amount,
-}: {
-  csrf: string;
-  groupId: string;
-  amount: string;
-}) {
-  const [state, action, pending] = useActionState(saveBudget, initial);
-  return (
-    <form action={action} className="flex items-end gap-2">
-      <CsrfField token={csrf} />
-      <input type="hidden" name="groupId" value={groupId} />
-      <div>
-        <label className="label" htmlFor="amount">
-          My budget
-        </label>
-        <input
-          id="amount"
-          name="amount"
-          type="number"
-          min="0"
-          step="0.01"
-          defaultValue={amount}
-          className="field w-28 py-1.5"
-          placeholder="100"
-        />
-      </div>
-      <button type="submit" className="btn btn-ghost py-2 text-sm" disabled={pending}>
-        Save
-      </button>
-      {state.error && <span className="text-xs text-danger">{state.error}</span>}
-    </form>
-  );
-}
 
 export function TogetherListForm({
   csrf,
@@ -75,9 +37,13 @@ export function TogetherListForm({
         id="title"
         name="title"
         className="field"
-        placeholder="Mom & Dad"
+        placeholder="Mom & Dad — shared list"
         required
       />
+      <label className="label" htmlFor="anniversary">
+        Anniversary (optional)
+      </label>
+      <input id="anniversary" name="anniversary" type="date" className="field" />
       <fieldset>
         <legend className="label">Also owns this list</legend>
         <div
@@ -98,64 +64,6 @@ export function TogetherListForm({
       </fieldset>
       <button type="submit" className="btn btn-primary" disabled={pending}>
         {pending ? "Creating…" : "Create together list"}
-      </button>
-    </form>
-  );
-}
-
-export function CoupleForm({
-  csrf,
-  groupId,
-  members,
-}: {
-  csrf: string;
-  groupId: string;
-  members: { id: string; display_name: string }[];
-}) {
-  const [state, action, pending] = useActionState(createCouple, initial);
-  return (
-    <form action={action} className="mt-3 space-y-3">
-      <CsrfField token={csrf} />
-      <input type="hidden" name="groupId" value={groupId} />
-      <Flash error={state.error} ok={state.ok} />
-      <label className="label" htmlFor="coupleLabel">
-        Label
-      </label>
-      <input
-        id="coupleLabel"
-        name="label"
-        className="field"
-        placeholder="Mom & Dad"
-        required
-      />
-      <label className="label" htmlFor="userA">
-        Person A
-      </label>
-      <select id="userA" name="userA" className="field" required>
-        <option value="">Select…</option>
-        {members.map((m) => (
-          <option key={m.id} value={m.id}>
-            {m.display_name}
-          </option>
-        ))}
-      </select>
-      <label className="label" htmlFor="userB">
-        Person B
-      </label>
-      <select id="userB" name="userB" className="field" required>
-        <option value="">Select…</option>
-        {members.map((m) => (
-          <option key={m.id} value={m.id}>
-            {m.display_name}
-          </option>
-        ))}
-      </select>
-      <label className="label" htmlFor="anniversary">
-        Anniversary
-      </label>
-      <input id="anniversary" name="anniversary" type="date" className="field" />
-      <button type="submit" className="btn btn-primary" disabled={pending}>
-        {pending ? "Saving…" : "Save couple"}
       </button>
     </form>
   );
@@ -200,8 +108,8 @@ export function LeaveForm({
       <CsrfField token={csrf} />
       <input type="hidden" name="groupId" value={groupId} />
       <Flash error={state.error} />
-      <button type="submit" className="btn btn-ghost w-full text-sm" disabled={pending}>
-        Leave group
+      <button type="submit" className="btn w-full text-sm" disabled={pending}>
+        Leave circle
       </button>
     </form>
   );
@@ -224,9 +132,13 @@ export function InviteForms({
         Email invite
       </label>
       <input id="email" name="email" type="email" className="field" required />
-      <button type="submit" className="btn btn-ghost w-full text-sm" disabled={pending}>
-        {pending ? "Creating…" : "Create invite link"}
+      <button type="submit" className="btn w-full text-sm" disabled={pending}>
+        {pending ? "Sending…" : "Email invite link"}
       </button>
+      <p style={{ fontSize: 11, color: "#555", margin: 0 }}>
+        Sends a magic invite link when email is configured (
+        <code>RESEND_API_KEY</code>).
+      </p>
     </form>
   );
 }
@@ -275,14 +187,21 @@ export function UserSearchPanel({
         {results.map((r) => (
           <li
             key={r.id}
-            className="flex items-center justify-between gap-2 rounded-lg bg-white/60 px-3 py-2 text-sm"
+            className="flex items-center justify-between gap-2 text-sm"
+            style={{
+              border: "1px solid #c0c0c0",
+              padding: "6px 8px",
+              background: "#fff",
+            }}
           >
             <div>
               <p className="font-semibold">{r.display_name}</p>
               <p className="text-muted">{r.email}</p>
             </div>
             {r.in_group ? (
-              <span className="text-xs text-moss">In group</span>
+              <span className="text-xs" style={{ color: "#006600" }}>
+                In circle
+              </span>
             ) : (
               <form action={action}>
                 <CsrfField token={csrf} />

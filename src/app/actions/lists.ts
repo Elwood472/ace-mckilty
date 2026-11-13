@@ -23,6 +23,7 @@ export async function createTogetherList(
     const user = await requireUser();
     const groupId = s(formData, "groupId");
     const title = s(formData, "title");
+    const anniversary = s(formData, "anniversary") || null;
     const ownerIds = formData.getAll("ownerIds").filter(
       (v): v is string => typeof v === "string" && v.length > 0,
     );
@@ -45,9 +46,9 @@ export async function createTogetherList(
     }
 
     const list = await sql<{ id: string }>(
-      `insert into wish_lists (group_id, title, list_type)
-       values ($1, $2, 'together') returning id`,
-      [groupId, title],
+      `insert into wish_lists (group_id, title, list_type, anniversary)
+       values ($1, $2, 'together', $3) returning id`,
+      [groupId, title, anniversary],
     );
     for (const oid of uniqueOwners) {
       await sql(
@@ -59,33 +60,6 @@ export async function createTogetherList(
   } catch (e) {
     if (e && typeof e === "object" && "digest" in e) throw e;
     return { error: "Could not create together list." };
-  }
-}
-
-export async function saveBudget(
-  _prev: ActionState,
-  formData: FormData,
-): Promise<ActionState> {
-  try {
-    await assertCsrf(formData.get("csrf"));
-    const user = await requireUser();
-    const groupId = s(formData, "groupId");
-    const amountRaw = s(formData, "amount");
-    await requireGroupMember(groupId, user.id);
-    const amount = Number(amountRaw);
-    if (Number.isNaN(amount) || amount < 0) {
-      return { error: "Enter a valid budget amount." };
-    }
-    await sql(
-      `insert into budgets (user_id, group_id, amount)
-       values ($1, $2, $3)
-       on conflict (user_id, group_id) do update set amount = excluded.amount`,
-      [user.id, groupId, amount],
-    );
-    revalidatePath(`/groups/${groupId}`);
-    return { ok: "Budget saved." };
-  } catch {
-    return { error: "Could not save budget." };
   }
 }
 

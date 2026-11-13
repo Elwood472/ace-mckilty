@@ -5,9 +5,8 @@ import { ensureCsrfToken } from "@/lib/csrf";
 import { sql } from "@/lib/db";
 import { getCurrentUser } from "@/lib/session";
 import { isGroupMember, isGroupOwner } from "@/lib/authz";
+import { formatMd } from "@/lib/dates";
 import {
-  BudgetForm,
-  CoupleForm,
   InviteForms,
   LeaveForm,
   MemberRemoveForm,
@@ -56,8 +55,10 @@ export default async function GroupPage({ params }: Props) {
     title: string;
     list_type: string;
     owners: string;
+    anniversary: string | null;
   }>(
     `select l.id, l.title, l.list_type,
+            l.anniversary::text as anniversary,
             string_agg(u.display_name, ', ' order by u.display_name) as owners
      from wish_lists l
      join wish_list_owners o on o.list_id = l.id
@@ -82,11 +83,6 @@ export default async function GroupPage({ params }: Props) {
     [groupId],
   );
 
-  const budget = await sql<{ amount: string }>(
-    "select amount::text as amount from budgets where user_id = $1 and group_id = $2",
-    [user.id, groupId],
-  );
-
   return (
     <>
       <SiteHeader user={user} />
@@ -98,7 +94,7 @@ export default async function GroupPage({ params }: Props) {
           {group.name}
         </h1>
         <p>
-          Invite code: <b>{group.invite_code}</b>
+          Friend circle · Invite code: <b>{group.invite_code}</b>
           {" · "}
           <Link href="/bought">Gifts I Bought</Link>
         </p>
@@ -108,17 +104,13 @@ export default async function GroupPage({ params }: Props) {
             <div className="panel" style={{ width: "100%", marginBottom: 16 }}>
               <div className="panel-head">Wish lists</div>
               <div style={{ padding: 10 }}>
-                <BudgetForm
-                  csrf={csrf}
-                  groupId={groupId}
-                  amount={budget[0]?.amount ?? ""}
-                />
-                <table className="legacy-table" style={{ marginTop: 8 }}>
+                <table className="legacy-table" style={{ marginTop: 4 }}>
                   <thead>
                     <tr>
                       <th>List</th>
                       <th>Type</th>
                       <th>Owners</th>
+                      <th>Anniversary</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -129,8 +121,15 @@ export default async function GroupPage({ params }: Props) {
                             {l.title}
                           </Link>
                         </td>
-                        <td>{l.list_type === "together" ? "Together" : "Personal"}</td>
+                        <td>
+                          {l.list_type === "together" ? "Together" : "Personal"}
+                        </td>
                         <td>{l.owners}</td>
+                        <td>
+                          {l.list_type === "together"
+                            ? formatMd(l.anniversary)
+                            : "—"}
+                        </td>
                       </tr>
                     ))}
                   </tbody>
@@ -138,20 +137,13 @@ export default async function GroupPage({ params }: Props) {
               </div>
             </div>
 
-            <div className="panel" style={{ width: "100%", marginBottom: 16 }}>
-              <div className="panel-head">Couple + anniversary</div>
+            <div className="panel" style={{ width: "100%" }}>
+              <div className="panel-head">Together list</div>
               <div style={{ padding: 10 }}>
                 <p style={{ marginTop: 0 }}>
-                  Creates a couple row on the home page (sorted by upcoming
-                  anniversary) and a together list if needed.
+                  Shared list for a couple or group gift. Anniversary is optional
+                  metadata on the list — not a separate home section.
                 </p>
-                <CoupleForm csrf={csrf} groupId={groupId} members={members} />
-              </div>
-            </div>
-
-            <div className="panel" style={{ width: "100%" }}>
-              <div className="panel-head">Together list (2+ owners)</div>
-              <div style={{ padding: 10 }}>
                 <TogetherListForm
                   csrf={csrf}
                   groupId={groupId}

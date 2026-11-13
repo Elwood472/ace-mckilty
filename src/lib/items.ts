@@ -10,6 +10,7 @@ type RawItem = {
   url: string;
   price: string | null;
   category: string;
+  source: string;
   quantity: number | null;
   image_url: string;
   display_date: string | null;
@@ -24,7 +25,7 @@ export type ItemFilters = {
   minPrice?: number | null;
   maxPrice?: number | null;
   category?: string | null;
-  budget?: number | null;
+  source?: string | null;
   sort?: SortKey;
   dir?: SortDir;
   q?: string | null;
@@ -74,14 +75,14 @@ export async function listVisibleItems(
     params.push(filters.maxPrice);
     where.push(`i.price <= $${params.length}`);
   }
-  if (filters.budget != null && !Number.isNaN(filters.budget)) {
-    params.push(filters.budget);
-    where.push(`(i.price is null or i.price <= $${params.length})`);
+  if (filters.source) {
+    params.push(filters.source);
+    where.push(`i.source = $${params.length}`);
   }
   if (filters.q) {
     params.push(`%${filters.q}%`);
     where.push(
-      `(i.title ilike $${params.length} or i.notes ilike $${params.length} or i.category ilike $${params.length})`,
+      `(i.title ilike $${params.length} or i.notes ilike $${params.length} or i.category ilike $${params.length} or i.source ilike $${params.length})`,
     );
   }
 
@@ -89,7 +90,7 @@ export async function listVisibleItems(
 
   const rows = await sql<RawItem>(
     `select i.id, i.list_id, i.title, i.notes, i.url, i.price::text as price,
-            i.category, i.quantity, i.image_url,
+            i.category, i.source, i.quantity, i.image_url,
             i.display_date::text as display_date, i.restricted, i.created_by,
             i.created_at::text as created_at, i.updated_at::text as updated_at,
             coalesce((select sum(p.quantity) from purchases p where p.item_id = i.id), 0)::int as purchased_qty

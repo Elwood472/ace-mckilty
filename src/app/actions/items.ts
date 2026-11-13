@@ -11,6 +11,7 @@ import {
   requireGroupMember,
   requireListOwner,
 } from "@/lib/authz";
+import { resolveSource } from "@/lib/source";
 
 function s(fd: FormData, key: string): string {
   const v = fd.get(key);
@@ -43,6 +44,7 @@ export async function createItem(
     const notes = s(formData, "notes");
     const url = s(formData, "url");
     const category = s(formData, "category");
+    const source = resolveSource(s(formData, "source"), url);
     const imageUrl = s(formData, "imageUrl");
     const displayDate = s(formData, "displayDate") || null;
     const priceRaw = s(formData, "price");
@@ -71,9 +73,9 @@ export async function createItem(
 
     const rows = await sql<{ id: string }>(
       `insert into items (
-         list_id, title, notes, url, price, category, quantity,
+         list_id, title, notes, url, price, category, source, quantity,
          image_url, display_date, restricted, created_by
-       ) values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)
+       ) values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)
        returning id`,
       [
         listId,
@@ -82,6 +84,7 @@ export async function createItem(
         url,
         price,
         category,
+        source,
         quantity,
         imageUrl,
         displayDate,
@@ -130,6 +133,7 @@ export async function updateItem(
     const notes = s(formData, "notes");
     const url = s(formData, "url");
     const category = s(formData, "category");
+    const source = resolveSource(s(formData, "source"), url);
     const imageUrl = s(formData, "imageUrl");
     const displayDate = s(formData, "displayDate") || null;
     const priceRaw = s(formData, "price");
@@ -159,15 +163,16 @@ export async function updateItem(
     await sql(
       `update items set
          title = $1, notes = $2, url = $3, price = $4, category = $5,
-         quantity = $6, image_url = $7, display_date = $8, restricted = $9,
-         updated_at = now()
-       where id = $10`,
+         source = $6, quantity = $7, image_url = $8, display_date = $9,
+         restricted = $10, updated_at = now()
+       where id = $11`,
       [
         title,
         notes,
         url,
         price,
         category,
+        source,
         quantity,
         imageUrl,
         displayDate,

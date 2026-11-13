@@ -30,12 +30,24 @@ export async function createGroup(
     if (!name || name.length > 120) {
       return { error: "Enter a group name (1–120 characters)." };
     }
-    const inviteCode = nanoid(12);
-    const rows = await sql<{ id: string }>(
-      `insert into groups (name, owner_id, invite_code)
-       values ($1, $2, $3) returning id`,
-      [name, user.id, inviteCode],
+    const dup = await sql(
+      `select 1 from groups where owner_id = $1 and lower(name) = lower($2)`,
+      [user.id, name],
     );
+    if (dup.length) {
+      return { error: "You already have a friend circle with that name." };
+    }
+    const inviteCode = nanoid(12);
+    let rows: { id: string }[];
+    try {
+      rows = await sql<{ id: string }>(
+        `insert into groups (name, owner_id, invite_code)
+         values ($1, $2, $3) returning id`,
+        [name, user.id, inviteCode],
+      );
+    } catch {
+      return { error: "You already have a friend circle with that name." };
+    }
     const groupId = rows[0].id;
     await sql(
       `insert into group_members (group_id, user_id, role) values ($1, $2, 'owner')`,
@@ -198,8 +210,42 @@ export async function createEmailInvite(
        values ($1, $2, $3, $4, now() + interval '14 days')`,
       [groupId, email, token, user.id],
     );
+
+    const group = await sql<{ name: string }>(
+      "select name from groups where id = $1",
+      [groupId],
+    );
+    const { inviteEmailBody, sendEmail } = await import("@/lib/email");
+    const base =
+      process.env.APP_BASE_URL?.trim() ||
+      process.env.NEXT_PUBLIC_APP_URL?.trim() ||
+      "";
+    const invitePath = `/invite/${token}`;
+    const inviteUrl = base ? `${base.replace(/\/$/, "")}${invitePath}` : invitePath;
+    const mail = inviteEmailBody({
+      groupName: group[0]?.name ?? "Gift Registry",
+      inviterName: user.display_name,
+      inviteUrl: base ? inviteUrl : `(open in the app) ${invitePath}`,
+    });
+    const sent = await sendEmail({
+      to: email,
+      subject: mail.subject,
+      text: mail.text,
+      html: mail.html,
+    });
+
     revalidatePath(`/groups/${groupId}`);
-    return { ok: `Invite created. Share link: /invite/${token}` };
+    if (!sent.ok) {
+      return {
+        ok: `Invite created (${invitePath}), but email failed: ${sent.error}`,
+      };
+    }
+    if (sent.mode === "stub") {
+      return {
+        ok: `Invite created. Email stubbed (set RESEND_API_KEY to send). Link: ${invitePath}`,
+      };
+    }
+    return { ok: `Invite emailed to ${email}. Link: ${invitePath}` };
   } catch (e) {
     if (e instanceof Error && (e.message === "UNAUTHORIZED" || e.message === "FORBIDDEN")) {
       return { error: "Not allowed." };

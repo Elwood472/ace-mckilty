@@ -29,6 +29,7 @@ export type Item = {
   url: string;
   price: string | null;
   category: string;
+  source: string;
   quantity: number | null;
   image_url: string;
   display_date: string | null;

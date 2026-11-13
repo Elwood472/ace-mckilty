@@ -6,7 +6,7 @@ import { ensureCsrfToken } from "@/lib/csrf";
 import { sql } from "@/lib/db";
 import { getCurrentUser } from "@/lib/session";
 import { activityClass, formatMd, formatMdY } from "@/lib/dates";
-import { listCouplesForViewer, listPeopleToBuyFor } from "@/lib/people";
+import { listPeopleToBuyFor } from "@/lib/people";
 import { CreateGroupForm, JoinGroupForm } from "./forms";
 
 export default async function DashboardPage() {
@@ -39,8 +39,6 @@ export default async function DashboardPage() {
   );
 
   const people = await listPeopleToBuyFor(user.id);
-  const couples = await listCouplesForViewer(user.id);
-
   let prevGroup = "";
 
   return (
@@ -51,7 +49,12 @@ export default async function DashboardPage() {
           <span className="brand-title">Gift Registry</span> — Home
         </p>
 
-        <table className="my-functions" cellPadding={0} cellSpacing={0} style={{ marginTop: 12 }}>
+        <table
+          className="my-functions"
+          cellPadding={0}
+          cellSpacing={0}
+          style={{ marginTop: 12 }}
+        >
           <tbody>
             <tr className="head">
               <td colSpan={2}>My Functions</td>
@@ -78,7 +81,9 @@ export default async function DashboardPage() {
                     Add a New Gift
                   </Link>
                 ) : (
-                  <span style={{ color: "#666" }}>Join a group to add gifts</span>
+                  <span style={{ color: "#666" }}>
+                    Join a friend circle to add gifts
+                  </span>
                 )}
               </td>
               <td>
@@ -109,21 +114,31 @@ export default async function DashboardPage() {
           </tbody>
         </table>
 
-        <h2 style={{ color: "#000080", marginTop: 28, marginBottom: 8, fontSize: 16 }}>
+        <h2
+          style={{
+            color: "#000080",
+            marginTop: 28,
+            marginBottom: 8,
+            fontSize: 16,
+          }}
+        >
           People you can buy for
           <span style={{ fontWeight: 400, fontSize: 12, color: "#333" }}>
             {" "}
-            — sorted by upcoming birthday within each group
+            — friends in your circles, sorted by upcoming birthday
           </span>
         </h2>
 
         {people.length === 0 ? (
-          <p>No one else in your groups yet. Create or join a group below.</p>
+          <p>
+            No one else in your circles yet. Create or join a friend circle
+            below.
+          </p>
         ) : (
           <table className="legacy-table" style={{ maxWidth: 980 }}>
             <thead>
               <tr>
-                <th>Group Name</th>
+                <th>Circle</th>
                 <th>Name</th>
                 <th></th>
                 <th>Birthday</th>
@@ -146,10 +161,14 @@ export default async function DashboardPage() {
                       </tr>
                     ) : null}
                     <tr>
-                      <td className="group-name">{showGroup ? p.group_name : ""}</td>
+                      <td className="group-name">
+                        {showGroup ? p.group_name : ""}
+                      </td>
                       <td>
                         {p.personal_list_id ? (
-                          <Link href={`/groups/${p.group_id}/lists/${p.personal_list_id}`}>
+                          <Link
+                            href={`/groups/${p.group_id}/lists/${p.personal_list_id}`}
+                          >
                             {p.display_name}
                           </Link>
                         ) : (
@@ -170,15 +189,26 @@ export default async function DashboardPage() {
                       </td>
                       <td align="right">{formatMd(p.birthday)}</td>
                       <td align="right">
-                        {p.days_until_birthday != null ? p.days_until_birthday : "—"}
+                        {p.days_until_birthday != null
+                          ? p.days_until_birthday
+                          : "—"}
                       </td>
-                      <td align="right" className={activityClass(p.last_added)}>
+                      <td
+                        align="right"
+                        className={activityClass(p.last_added)}
+                      >
                         {p.last_added ? formatMdY(p.last_added) : ""}
                       </td>
-                      <td align="right" className={activityClass(p.last_modified)}>
+                      <td
+                        align="right"
+                        className={activityClass(p.last_modified)}
+                      >
                         {p.last_modified ? formatMdY(p.last_modified) : ""}
                       </td>
-                      <td align="right" className={activityClass(p.last_removed)}>
+                      <td
+                        align="right"
+                        className={activityClass(p.last_removed)}
+                      >
                         {p.last_removed ? formatMdY(p.last_removed) : ""}
                       </td>
                     </tr>
@@ -189,66 +219,20 @@ export default async function DashboardPage() {
           </table>
         )}
 
-        <h2 style={{ color: "#000080", marginTop: 28, marginBottom: 8, fontSize: 16 }}>
-          Couples / anniversaries
-          <span style={{ fontWeight: 400, fontSize: 12, color: "#333" }}>
-            {" "}
-            — sorted by upcoming anniversary
-          </span>
-        </h2>
-
-        {couples.length === 0 ? (
-          <p>
-            No couples yet. Open a group and add a couple (e.g. Mom &amp; Dad) with an
-            anniversary date.
-          </p>
-        ) : (
-          <table className="legacy-table" style={{ maxWidth: 820 }}>
-            <thead>
-              <tr>
-                <th>Group</th>
-                <th>Couple</th>
-                <th>Anniversary</th>
-                <th>Days</th>
-                <th>Together list</th>
-              </tr>
-            </thead>
-            <tbody>
-              {couples.map((c) => (
-                <tr key={c.id}>
-                  <td className="group-name">{c.group_name}</td>
-                  <td>
-                    <b>{c.label}</b>
-                    <div style={{ color: "#333" }}>
-                      {c.user_a_name} &amp; {c.user_b_name}
-                    </div>
-                  </td>
-                  <td align="right">{formatMd(c.anniversary)}</td>
-                  <td align="right">
-                    {c.days_until_anniversary != null ? c.days_until_anniversary : "—"}
-                  </td>
-                  <td>
-                    {c.together_list_id ? (
-                      <Link href={`/groups/${c.group_id}/lists/${c.together_list_id}`}>
-                        Open list
-                      </Link>
-                    ) : (
-                      "—"
-                    )}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        )}
-
-        <h2 style={{ color: "#000080", marginTop: 28, marginBottom: 8, fontSize: 16 }}>
-          Your groups
+        <h2
+          style={{
+            color: "#000080",
+            marginTop: 28,
+            marginBottom: 8,
+            fontSize: 16,
+          }}
+        >
+          Your friend circles
         </h2>
         <table className="legacy-table" style={{ maxWidth: 640, marginBottom: 16 }}>
           <thead>
             <tr>
-              <th>Group</th>
+              <th>Circle</th>
               <th>Members</th>
               <th>Role</th>
               <th></th>
@@ -257,7 +241,7 @@ export default async function DashboardPage() {
           <tbody>
             {groups.length === 0 ? (
               <tr>
-                <td colSpan={4}>No groups yet.</td>
+                <td colSpan={4}>No friend circles yet.</td>
               </tr>
             ) : (
               groups.map((g) => (
@@ -276,7 +260,7 @@ export default async function DashboardPage() {
 
         <div style={{ display: "flex", gap: 24, flexWrap: "wrap" }}>
           <div className="panel" style={{ minWidth: 280 }}>
-            <div className="panel-head">Create a group</div>
+            <div className="panel-head">Create a friend circle</div>
             <div style={{ padding: 10 }}>
               <CreateGroupForm csrf={csrf} />
             </div>

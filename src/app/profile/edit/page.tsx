@@ -45,9 +45,13 @@ export default async function EditProfilePage() {
           {" · "}
           <Link href={`/profile/${user.id}`}>View profile</Link>
         </p>
-        <h1 className="brand-title" style={{ fontSize: 20, marginTop: 8 }}>
-          My Profile
+        <h1 className="brand-title" style={{ fontSize: 22, marginTop: 8 }}>
+          Edit profile
         </h1>
+        <p style={{ color: "#555", maxWidth: 560 }}>
+          Keep your birthday up to date so friends see you in the right order on
+          the home page.
+        </p>
         <ProfileEditForm csrf={csrf} initial={rows[0]} email={user.email} />
       </main>
     </>

@@ -24,8 +24,8 @@ export function ListFilters({
   minPrice,
   maxPrice,
   category,
-  useBudget,
-  budget,
+  source,
+  sources,
 }: {
   groupId: string;
   listId: string;
@@ -35,8 +35,8 @@ export function ListFilters({
   minPrice: string;
   maxPrice: string;
   category: string | null;
-  useBudget: boolean;
-  budget: number | null;
+  source: string;
+  sources: string[];
 }) {
   return (
     <form
@@ -84,6 +84,19 @@ export function ListFilters({
         />
       </div>
       <div>
+        <label className="label" htmlFor="source">
+          Store / source
+        </label>
+        <select id="source" name="source" className="field" defaultValue={source}>
+          <option value="">Any store</option>
+          {sources.map((s) => (
+            <option key={s} value={s}>
+              {s}
+            </option>
+          ))}
+        </select>
+      </div>
+      <div>
         <label className="label" htmlFor="sort">
           Sort
         </label>
@@ -103,13 +116,8 @@ export function ListFilters({
           <option value="desc">Descending</option>
         </select>
       </div>
-      <div className="flex items-end gap-3 sm:col-span-2 lg:col-span-6">
-        <label className="flex items-center gap-2 text-sm text-muted">
-          <input type="checkbox" name="budget" value="1" defaultChecked={useBudget} />
-          Within my budget
-          {budget != null ? ` ($${budget.toFixed(2)})` : " (set a budget on the group page)"}
-        </label>
-        <button type="submit" className="btn btn-ghost ml-auto py-2 text-sm">
+      <div className="flex items-end sm:col-span-2 lg:col-span-6">
+        <button type="submit" className="btn ml-auto py-2 text-sm">
           Apply filters
         </button>
       </div>
@@ -181,6 +189,7 @@ export function ItemTable({
             <th>
               <SortHeader label="Price" col="price" sort={sort} dir={dir} groupId={groupId} listId={listId} />
             </th>
+            <th>Store</th>
             <th>Qty</th>
             <th>
               <SortHeader label="When" col="display_date" sort={sort} dir={dir} groupId={groupId} listId={listId} />
@@ -278,6 +287,7 @@ function ItemRow({
       <td className="px-4 py-3 text-right tabular-nums">
         {item.price != null ? `$${Number(item.price).toFixed(2)}` : "—"}
       </td>
+      <td className="px-4 py-3 text-muted">{item.source || "—"}</td>
       <td className="px-4 py-3">{qtyLabel}</td>
       <td className="px-4 py-3 text-muted">{item.display_date ?? "—"}</td>
       <td className="px-4 py-3">
@@ -424,6 +434,17 @@ export function AddItemForm({
           URL
         </label>
         <input id="url" name="url" type="url" className="field" placeholder="https://" />
+      </div>
+      <div>
+        <label className="label" htmlFor="source">
+          Store / source
+        </label>
+        <input
+          id="source"
+          name="source"
+          className="field"
+          placeholder="Amazon (auto from URL if blank)"
+        />
       </div>
       <div className="sm:col-span-2">
         <label className="label" htmlFor="imageUrl">

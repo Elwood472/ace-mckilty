@@ -60,12 +60,6 @@ export default async function ListPage({ params, searchParams }: Props) {
   );
   const members = allMembers.filter((m) => !ownerIdSet.has(m.id));
 
-  const budgetRow = await sql<{ amount: string }>(
-    "select amount::text as amount from budgets where user_id = $1 and group_id = $2",
-    [user.id, groupId],
-  );
-  const budget = budgetRow[0] ? Number(budgetRow[0].amount) : null;
-
   const sort = (one(sp.sort) || "title") as SortKey;
   const dir = (one(sp.dir) || "asc") as SortDir;
   const categoryParam = one(sp.category);
@@ -78,7 +72,7 @@ export default async function ListPage({ params, searchParams }: Props) {
   const q = one(sp.q) || null;
   const minPrice = one(sp.minPrice) ? Number(one(sp.minPrice)) : null;
   const maxPrice = one(sp.maxPrice) ? Number(one(sp.maxPrice)) : null;
-  const useBudget = one(sp.budget) === "1";
+  const source = one(sp.source);
 
   const items = await listVisibleItems(listId, user.id, {
     sort,
@@ -87,16 +81,24 @@ export default async function ListPage({ params, searchParams }: Props) {
     q,
     minPrice,
     maxPrice,
-    budget: useBudget ? budget : null,
+    source: source || null,
   });
   const toc = await categoryToc(listId, user.id);
+
+  const sourceRows = await sql<{ source: string }>(
+    `select distinct source from items
+     where list_id = $1 and deleted = false and source <> ''
+     order by source`,
+    [listId],
+  );
+  const sources = sourceRows.map((r) => r.source);
 
   return (
     <>
       <SiteHeader user={user} />
       <main className="site-main">
         <p>
-          <Link href={`/groups/${groupId}`}>← Back to group</Link>
+          <Link href={`/groups/${groupId}`}>← Back to circle</Link>
           {" · "}
           <Link href="/dashboard">Home</Link>
           {" · "}
@@ -157,8 +159,8 @@ export default async function ListPage({ params, searchParams }: Props) {
                   minPrice={one(sp.minPrice)}
                   maxPrice={one(sp.maxPrice)}
                   category={category}
-                  useBudget={useBudget}
-                  budget={budget}
+                  source={source}
+                  sources={sources}
                 />
               </div>
             </div>

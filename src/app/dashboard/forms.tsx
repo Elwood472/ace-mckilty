@@ -18,18 +18,18 @@ export function CreateGroupForm({ csrf }: { csrf: string }) {
       <CsrfField token={csrf} />
       <Flash error={state.error} />
       <label className="label" htmlFor="name">
-        Group name
+        Circle name
       </label>
       <input
         id="name"
         name="name"
         className="field"
-        placeholder="Bray Christmas 2026"
+        placeholder="Family & close friends"
         required
         maxLength={120}
       />
       <button type="submit" className="btn btn-primary w-full" disabled={pending}>
-        {pending ? "Creating…" : "Create group"}
+        {pending ? "Creating…" : "Create friend circle"}
       </button>
     </form>
   );
@@ -45,8 +45,8 @@ export function JoinGroupForm({ csrf }: { csrf: string }) {
         Invite code
       </label>
       <input id="code" name="code" className="field" required />
-      <button type="submit" className="btn btn-ghost w-full" disabled={pending}>
-        {pending ? "Joining…" : "Join group"}
+      <button type="submit" className="btn w-full" disabled={pending}>
+        {pending ? "Joining…" : "Join circle"}
       </button>
     </form>
   );
