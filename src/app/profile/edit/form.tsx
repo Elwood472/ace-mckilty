@@ -42,6 +42,7 @@ function Field({
     <label style={{ display: "block", marginBottom: 14 }}>
       <span className="label">{label}</span>
       <input
+        id={name}
         className="field"
         name={name}
         type={type}

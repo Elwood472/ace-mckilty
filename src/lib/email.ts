@@ -74,19 +74,19 @@ function escapeHtml(s: string): string {
 }
 
 export function inviteEmailBody(opts: {
-  groupName: string;
+  listTitle: string;
   inviterName: string;
   inviteUrl: string;
 }): { subject: string; text: string; html: string } {
-  const subject = `You're invited to ${opts.groupName} on Gift Registry`;
+  const subject = `You're invited to view ${opts.listTitle} on Gift Registry`;
   const text =
-    `${opts.inviterName} invited you to the friend circle “${opts.groupName}” on Gift Registry.\n\n` +
-    `Open this link to join:\n${opts.inviteUrl}\n\n` +
+    `${opts.inviterName} invited you to view “${opts.listTitle}” on Gift Registry.\n\n` +
+    `Open this magic link to get access:\n${opts.inviteUrl}\n\n` +
     `If you don't have an account yet, create one with this same email, then open the link again.`;
   const html = `
     <div style="font-family:Arial,Helvetica,sans-serif;font-size:14px;color:#111">
-      <p><b>${escapeHtml(opts.inviterName)}</b> invited you to the friend circle
-      “${escapeHtml(opts.groupName)}” on Gift Registry.</p>
+      <p><b>${escapeHtml(opts.inviterName)}</b> invited you to view
+      “${escapeHtml(opts.listTitle)}” on Gift Registry.</p>
       <p><a href="${escapeHtml(opts.inviteUrl)}"
         style="display:inline-block;background:#000080;color:#fff;padding:10px 16px;text-decoration:none;font-weight:700">
         Accept invite

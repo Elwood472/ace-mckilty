@@ -53,6 +53,8 @@ export async function signUp(
      values ($1, $2, $3) returning id`,
     [email, passwordHash, displayName],
   );
+  const { ensurePersonalList } = await import("@/lib/lists");
+  await ensurePersonalList(rows[0].id, displayName);
   await createSession(rows[0].id);
   redirect("/dashboard");
 }
@@ -88,7 +90,14 @@ export async function signIn(
   }
 
   await createSession(user.id);
-  redirect("/dashboard");
+  const named = await sql<{ display_name: string }>(
+    "select display_name from users where id = $1",
+    [user.id],
+  );
+  const { ensurePersonalList } = await import("@/lib/lists");
+  await ensurePersonalList(user.id, named[0]?.display_name ?? "My");
+  const next = formString(formData, "next");
+  redirect(next.startsWith("/") && !next.startsWith("//") ? next : "/dashboard");
 }
 
 export async function signOut(): Promise<void> {

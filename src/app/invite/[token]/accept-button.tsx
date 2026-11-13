@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { acceptInviteToken } from "@/app/actions/groups";
+import { acceptListInviteToken } from "@/app/actions/access";
 import { Flash } from "@/components/flash";
 
 export function AcceptInviteButton({ token }: { token: string }) {
@@ -13,16 +13,16 @@ export function AcceptInviteButton({ token }: { token: string }) {
       <Flash error={error} />
       <button
         type="button"
-        className="btn btn-amber"
+        className="btn btn-primary"
         disabled={pending}
         onClick={() => {
           start(async () => {
-            const res = await acceptInviteToken(token);
+            const res = await acceptListInviteToken(token);
             if (res?.error) setError(res.error);
           });
         }}
       >
-        {pending ? "Joining…" : "Accept invite"}
+        {pending ? "Accepting…" : "Accept invite"}
       </button>
     </div>
   );

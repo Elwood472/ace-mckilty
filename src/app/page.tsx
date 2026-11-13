@@ -15,9 +15,10 @@ export default async function HomePage() {
           Welcome to the family <span className="brand-title">Gift Registry</span>
         </p>
         <p style={{ maxWidth: 560, marginTop: 12 }}>
-          Keep wish lists with your friend circles. When someone marks a gift
-          bought, everyone except the list owner can see that it was purchased.
-          On the home page, people you can buy for are sorted by upcoming
+          Keep a personal wish list and share it with the people you choose —
+          invite by email, or let someone request access and approve them. When
+          a gift is marked bought, everyone except the list owner can see that
+          it was purchased. Home sorts people you can buy for by upcoming
           birthday.
         </p>
         <p style={{ marginTop: 16 }}>

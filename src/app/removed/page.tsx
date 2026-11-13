@@ -22,11 +22,10 @@ export default async function RemovedPage() {
     deleted_at: string | null;
     list_id: string;
     list_title: string;
-    group_id: string;
   }>(
     `select i.id, i.title, i.category, i.price::text as price, i.notes, i.url,
             i.deleted_at::text as deleted_at, i.list_id,
-            l.title as list_title, l.group_id
+            l.title as list_title
      from items i
      join wish_lists l on l.id = i.list_id
      join wish_list_owners o on o.list_id = l.id

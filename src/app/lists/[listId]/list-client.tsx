@@ -16,7 +16,7 @@ import type { ItemView, SortDir, SortKey } from "@/lib/types";
 const initial: ActionState = {};
 
 export function ListFilters({
-  groupId,
+  
   listId,
   sort,
   dir,
@@ -27,7 +27,7 @@ export function ListFilters({
   source,
   sources,
 }: {
-  groupId: string;
+  
   listId: string;
   sort: SortKey;
   dir: SortDir;
@@ -41,7 +41,7 @@ export function ListFilters({
   return (
     <form
       method="get"
-      action={`/groups/${groupId}/lists/${listId}`}
+      action={`/lists/${listId}`}
       className="grid gap-3 sm:grid-cols-2 lg:grid-cols-6"
     >
       {category === null ? null : category === "" ? (
@@ -130,18 +130,18 @@ function SortHeader({
   col,
   sort,
   dir,
-  groupId,
+  
   listId,
 }: {
   label: string;
   col: SortKey;
   sort: SortKey;
   dir: SortDir;
-  groupId: string;
+  
   listId: string;
 }) {
   const nextDir = sort === col && dir === "asc" ? "desc" : "asc";
-  const href = `/groups/${groupId}/lists/${listId}?sort=${col}&dir=${nextDir}`;
+  const href = `/lists/${listId}?sort=${col}&dir=${nextDir}`;
   return (
     <Link href={href} className="inline-flex items-center gap-1 hover:text-amber-deep">
       {label}
@@ -154,7 +154,7 @@ export function ItemTable({
   items,
   owner,
   csrf,
-  groupId,
+  
   listId,
   sort,
   dir,
@@ -162,7 +162,7 @@ export function ItemTable({
   items: ItemView[];
   owner: boolean;
   csrf: string;
-  groupId: string;
+  
   listId: string;
   sort: SortKey;
   dir: SortDir;
@@ -181,18 +181,18 @@ export function ItemTable({
         <thead>
           <tr>
             <th>
-              <SortHeader label="Item" col="title" sort={sort} dir={dir} groupId={groupId} listId={listId} />
+              <SortHeader label="Item" col="title" sort={sort} dir={dir}  listId={listId} />
             </th>
             <th>
-              <SortHeader label="Category" col="category" sort={sort} dir={dir} groupId={groupId} listId={listId} />
+              <SortHeader label="Category" col="category" sort={sort} dir={dir}  listId={listId} />
             </th>
             <th>
-              <SortHeader label="Price" col="price" sort={sort} dir={dir} groupId={groupId} listId={listId} />
+              <SortHeader label="Price" col="price" sort={sort} dir={dir}  listId={listId} />
             </th>
             <th>Store</th>
             <th>Qty</th>
             <th>
-              <SortHeader label="When" col="display_date" sort={sort} dir={dir} groupId={groupId} listId={listId} />
+              <SortHeader label="When" col="display_date" sort={sort} dir={dir}  listId={listId} />
             </th>
             <th>Action</th>
           </tr>

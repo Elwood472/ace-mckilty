@@ -21,13 +21,12 @@ export default async function BoughtPage() {
     price: string | null;
     list_title: string;
     list_id: string;
-    group_id: string;
     for_names: string;
   }>(
     `select p.id as purchase_id, p.item_id, p.quantity,
             p.created_at::text as created_at,
             i.title, i.price::text as price, i.list_id,
-            l.title as list_title, l.group_id,
+            l.title as list_title,
             string_agg(u.display_name, ', ' order by u.display_name) as for_names
      from purchases p
      join items i on i.id = p.item_id
@@ -75,9 +74,7 @@ export default async function BoughtPage() {
                   <td className="group-name">{r.for_names}</td>
                   <td>{formatMdY(r.created_at)}</td>
                   <td>
-                    <Link href={`/groups/${r.group_id}/lists/${r.list_id}`}>
-                      {r.title}
-                    </Link>
+                    <Link href={`/lists/${r.list_id}`}>{r.title}</Link>
                     <div style={{ color: "#333" }}>{r.list_title}</div>
                   </td>
                   <td align="right">

@@ -24,7 +24,11 @@ export default async function LoginPage({
         <p>
           <b>User Name</b> (email) and <b>Password</b>:
         </p>
-        <AuthForm mode="login" csrf={csrf} />
+        <AuthForm
+          mode="login"
+          csrf={csrf}
+          next={sp.next && sp.next.startsWith("/") ? sp.next : undefined}
+        />
       </main>
     </>
   );

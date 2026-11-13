@@ -1,9 +1,13 @@
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { SiteHeader } from "@/components/site-header";
+import { ensureCsrfToken } from "@/lib/csrf";
 import { sql } from "@/lib/db";
 import { getCurrentUser } from "@/lib/session";
+import { canViewList } from "@/lib/authz";
+import { getPersonalListId } from "@/lib/lists";
 import { formatMdY } from "@/lib/dates";
+import { RequestAccessButton } from "./request-access";
 
 type Props = { params: Promise<{ userId: string }> };
 
@@ -33,18 +37,6 @@ export default async function ProfilePage({ params }: Props) {
   const me = await getCurrentUser();
   if (!me) redirect("/login");
 
-  // Must share a group (or be yourself)
-  if (userId !== me.id) {
-    const shared = await sql(
-      `select 1 from group_members a
-       join group_members b on b.group_id = a.group_id
-       where a.user_id = $1 and b.user_id = $2
-       limit 1`,
-      [me.id, userId],
-    );
-    if (!shared.length) notFound();
-  }
-
   const rows = await sql<Profile>(
     `select id, display_name, email, birthday::text as birthday,
             profile_modified_at::text as profile_modified_at,
@@ -56,6 +48,21 @@ export default async function ProfilePage({ params }: Props) {
   );
   if (!rows.length) notFound();
   const p = rows[0];
+
+  const theirListId = await getPersonalListId(userId);
+  const csrf = await ensureCsrfToken();
+  let access: "self" | "granted" | "pending" | "none" = "none";
+  if (userId === me.id) access = "self";
+  else if (theirListId && (await canViewList(theirListId, me.id))) {
+    access = "granted";
+  } else if (theirListId) {
+    const pending = await sql(
+      `select 1 from list_access_requests
+       where list_id = $1 and requester_id = $2 and status = 'pending'`,
+      [theirListId, me.id],
+    );
+    access = pending.length ? "pending" : "none";
+  }
 
   function row(label: string, value: string, alt: "a" | "b") {
     return (
@@ -80,7 +87,33 @@ export default async function ProfilePage({ params }: Props) {
               <Link href="/profile/edit">Edit My Profile</Link>
             </>
           ) : null}
+          {access === "granted" && theirListId ? (
+            <>
+              {" · "}
+              <Link href={`/lists/${theirListId}`}>View wish list</Link>
+            </>
+          ) : null}
         </p>
+
+        {access === "none" && theirListId ? (
+          <div className="panel" style={{ maxWidth: 560, marginTop: 8, marginBottom: 12 }}>
+            <div className="panel-head">Wish list access</div>
+            <div style={{ padding: 10 }}>
+              <p style={{ marginTop: 0 }}>
+                You don&apos;t have access to {p.display_name}&apos;s list yet.
+              </p>
+              <RequestAccessButton
+                csrf={csrf}
+                listId={theirListId}
+                ownerUserId={userId}
+              />
+            </div>
+          </div>
+        ) : null}
+        {access === "pending" ? (
+          <p style={{ color: "#555" }}>Access request pending approval.</p>
+        ) : null}
+
         <table className="profile-table" cellPadding={0} cellSpacing={0} style={{ maxWidth: 560, marginTop: 8 }}>
           <tbody>
             <tr>

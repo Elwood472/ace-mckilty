@@ -5,19 +5,12 @@ export type User = {
   created_at: string;
 };
 
-export type Group = {
-  id: string;
-  name: string;
-  owner_id: string;
-  invite_code: string;
-  created_at: string;
-};
-
 export type WishList = {
   id: string;
-  group_id: string;
+  group_id: string | null;
   title: string;
   list_type: "personal" | "together";
+  anniversary?: string | null;
   created_at: string;
 };
 

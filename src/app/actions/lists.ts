@@ -5,7 +5,8 @@ import { redirect } from "next/navigation";
 import { sql } from "@/lib/db";
 import { assertCsrf } from "@/lib/csrf";
 import { requireUser } from "@/lib/session";
-import { requireGroupMember, requireListOwner } from "@/lib/authz";
+import { requireListOwner } from "@/lib/authz";
+import { ensurePersonalList } from "@/lib/lists";
 
 function s(fd: FormData, key: string): string {
   const v = fd.get(key);
@@ -21,34 +22,32 @@ export async function createTogetherList(
   try {
     await assertCsrf(formData.get("csrf"));
     const user = await requireUser();
-    const groupId = s(formData, "groupId");
+    await ensurePersonalList(user.id, user.display_name);
+
     const title = s(formData, "title");
     const anniversary = s(formData, "anniversary") || null;
-    const ownerIds = formData.getAll("ownerIds").filter(
-      (v): v is string => typeof v === "string" && v.length > 0,
-    );
-    await requireGroupMember(groupId, user.id);
+    const ownerIds = formData
+      .getAll("ownerIds")
+      .filter((v): v is string => typeof v === "string" && v.length > 0);
 
     if (!title || title.length > 120) {
       return { error: "Enter a list title." };
     }
     const uniqueOwners = [...new Set([user.id, ...ownerIds])];
     if (uniqueOwners.length < 2) {
-      return { error: "Together lists need at least two owners." };
+      return { error: "Together lists need at least one other owner." };
     }
 
     for (const oid of uniqueOwners) {
-      const m = await sql(
-        "select 1 from group_members where group_id = $1 and user_id = $2",
-        [groupId, oid],
-      );
-      if (!m.length) return { error: "All owners must be group members." };
+      if (oid === user.id) continue;
+      const exists = await sql("select 1 from users where id = $1", [oid]);
+      if (!exists.length) return { error: "All co-owners must be real accounts." };
     }
 
     const list = await sql<{ id: string }>(
       `insert into wish_lists (group_id, title, list_type, anniversary)
-       values ($1, $2, 'together', $3) returning id`,
-      [groupId, title, anniversary],
+       values (null, $1, 'together', $2) returning id`,
+      [title, anniversary],
     );
     for (const oid of uniqueOwners) {
       await sql(
@@ -56,7 +55,7 @@ export async function createTogetherList(
         [list[0].id, oid],
       );
     }
-    redirect(`/groups/${groupId}/lists/${list[0].id}`);
+    redirect(`/lists/${list[0].id}`);
   } catch (e) {
     if (e && typeof e === "object" && "digest" in e) throw e;
     return { error: "Could not create together list." };
@@ -75,11 +74,7 @@ export async function renameList(
     await requireListOwner(listId, user.id);
     if (!title) return { error: "Title required." };
     await sql(`update wish_lists set title = $1 where id = $2`, [title, listId]);
-    const g = await sql<{ group_id: string }>(
-      "select group_id from wish_lists where id = $1",
-      [listId],
-    );
-    revalidatePath(`/groups/${g[0].group_id}/lists/${listId}`);
+    revalidatePath(`/lists/${listId}`);
     return { ok: "Renamed." };
   } catch {
     return { error: "Could not rename list." };

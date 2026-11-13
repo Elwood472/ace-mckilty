@@ -5,11 +5,10 @@ import { sql, withTransaction } from "@/lib/db";
 import { assertCsrf } from "@/lib/csrf";
 import { requireUser } from "@/lib/session";
 import {
-  getListGroupId,
   getListOwnerIds,
   isListOwner,
-  requireGroupMember,
   requireListOwner,
+  requireListViewer,
 } from "@/lib/authz";
 import { resolveSource } from "@/lib/source";
 
@@ -21,11 +20,8 @@ function s(fd: FormData, key: string): string {
 export type ActionState = { error?: string; ok?: string };
 
 async function revalidateList(listId: string) {
-  const groupId = await getListGroupId(listId);
-  if (groupId) {
-    revalidatePath(`/groups/${groupId}`);
-    revalidatePath(`/groups/${groupId}/lists/${listId}`);
-  }
+  revalidatePath(`/lists/${listId}`);
+  revalidatePath("/dashboard");
 }
 
 export async function createItem(
@@ -48,7 +44,7 @@ export async function createItem(
     const imageUrl = s(formData, "imageUrl");
     const displayDate = s(formData, "displayDate") || null;
     const priceRaw = s(formData, "price");
-    const qtyMode = s(formData, "qtyMode"); // 1 | n | unlimited
+    const qtyMode = s(formData, "qtyMode");
     const qtyRaw = s(formData, "quantity");
     const restricted = s(formData, "restricted") === "on";
     const viewerIds = formData
@@ -106,7 +102,10 @@ export async function createItem(
     await revalidateList(listId);
     return { ok: "Item added." };
   } catch (e) {
-    if (e instanceof Error && (e.message === "UNAUTHORIZED" || e.message === "FORBIDDEN")) {
+    if (
+      e instanceof Error &&
+      (e.message === "UNAUTHORIZED" || e.message === "FORBIDDEN")
+    ) {
       return { error: "Not allowed." };
     }
     return { error: "Could not add item." };
@@ -220,7 +219,6 @@ export async function deleteItem(
     );
     await revalidateList(items[0].list_id);
     revalidatePath("/removed");
-    revalidatePath("/dashboard");
     return { ok: "Item removed (can put back from Removed)." };
   } catch {
     return { error: "Could not remove item." };
@@ -248,7 +246,6 @@ export async function restoreItem(
     );
     await revalidateList(items[0].list_id);
     revalidatePath("/removed");
-    revalidatePath("/dashboard");
     return { ok: "Put back on your list." };
   } catch {
     return { error: "Could not put item back." };
@@ -302,10 +299,6 @@ export async function purgeBoughtItem(
   }
 }
 
-/**
- * Secret purchase with last-second race check.
- * Owners of the wish list cannot purchase (or see purchase state elsewhere).
- */
 export async function markPurchased(
   _prev: ActionState,
   formData: FormData,
@@ -331,9 +324,7 @@ export async function markPurchased(
     if (!items.length) return { error: "Item not found." };
     const item = items[0];
 
-    const groupId = await getListGroupId(item.list_id);
-    if (!groupId) return { error: "List not found." };
-    await requireGroupMember(groupId, user.id);
+    await requireListViewer(item.list_id, user.id);
 
     if (await isListOwner(item.list_id, user.id)) {
       return { error: "You cannot mark items on your own list as purchased." };
@@ -348,7 +339,6 @@ export async function markPurchased(
     }
 
     const result = await withTransaction(async (query) => {
-      // Lock item row for race-safe claim
       const locked = await query<{ quantity: number | null }>(
         "select quantity from items where id = $1 for update",
         [itemId],
@@ -385,7 +375,10 @@ export async function markPurchased(
     await revalidateList(item.list_id);
     return result;
   } catch (e) {
-    if (e instanceof Error && (e.message === "UNAUTHORIZED" || e.message === "FORBIDDEN")) {
+    if (
+      e instanceof Error &&
+      (e.message === "UNAUTHORIZED" || e.message === "FORBIDDEN")
+    ) {
       return { error: "Not allowed." };
     }
     return { error: "Could not mark purchased." };
@@ -411,9 +404,7 @@ export async function unpurchase(
       return { error: "Not allowed." };
     }
 
-    const groupId = await getListGroupId(items[0].list_id);
-    if (!groupId) return { error: "List not found." };
-    await requireGroupMember(groupId, user.id);
+    await requireListViewer(items[0].list_id, user.id);
 
     await sql(
       "delete from purchases where item_id = $1 and buyer_user_id = $2",

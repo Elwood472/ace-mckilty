@@ -10,9 +10,11 @@ const initial: AuthState = {};
 export function AuthForm({
   mode,
   csrf,
+  next,
 }: {
   mode: "signup" | "login";
   csrf: string;
+  next?: string;
 }) {
   const action = mode === "signup" ? signUp : signIn;
   const [state, formAction, pending] = useActionState(action, initial);
@@ -24,6 +26,7 @@ export function AuthForm({
       style={{ padding: 16, maxWidth: 360, width: "100%" }}
     >
       <CsrfField token={csrf} />
+      {next ? <input type="hidden" name="next" value={next} /> : null}
       {mode === "signup" && (
         <div style={{ marginBottom: 10 }}>
           <label className="label" htmlFor="displayName">
