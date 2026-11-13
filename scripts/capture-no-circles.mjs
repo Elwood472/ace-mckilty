@@ -59,6 +59,8 @@ const buyerEmail = `buyer-nocirc-${stamp}@example.com`;
 const pass = "password123";
 
 await signup("Owner One", ownerEmail, pass, "1984-12-20");
+await page.goto(`${BASE}/dashboard`);
+await page.waitForSelector("text=Invite someone to my list");
 await shot("31-home-no-circles.png");
 
 await page.goto(`${BASE}/profile/edit`);
