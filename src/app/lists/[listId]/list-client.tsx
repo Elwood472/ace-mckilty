@@ -419,11 +419,11 @@ export function AddItemForm({
       if (result.price) setPrice(result.price);
       if (result.source) setSource(result.source);
       if (result.imageUrl) setImageUrl(result.imageUrl);
-      if (result.notes) setNotes(result.notes);
+      // Notes are never filled from Auto-fill.
       setAutofillMsg(
         result.warning ||
-          (result.title
-            ? "Filled from link — edit anything that looks off."
+          (result.title || result.price
+            ? "Filled from link (price in USD) — edit anything that looks off."
             : "No fields found — edit manually."),
       );
     } finally {
