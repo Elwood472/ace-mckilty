@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useActionState, useState } from "react";
+import { useActionState, useEffect, useRef, useState } from "react";
 import {
   autofillItemFromUrl,
   createItem,
@@ -371,15 +371,44 @@ export function AddItemForm({
 }) {
   const [state, action, pending] = useActionState(createItem, initial);
   const [qtyMode, setQtyMode] = useState("1");
+  const [quantity, setQuantity] = useState("2");
   const [restricted, setRestricted] = useState(false);
+  const [viewerIds, setViewerIds] = useState<string[]>([]);
   const [url, setUrl] = useState("");
   const [title, setTitle] = useState("");
+  const [category, setCategory] = useState("");
   const [price, setPrice] = useState("");
+  const [displayDate, setDisplayDate] = useState("");
   const [source, setSource] = useState("");
   const [imageUrl, setImageUrl] = useState("");
   const [notes, setNotes] = useState("");
   const [autofillMsg, setAutofillMsg] = useState<string | undefined>();
   const [autofillPending, setAutofillPending] = useState(false);
+  const wasPending = useRef(false);
+
+  function clearForm() {
+    setUrl("");
+    setTitle("");
+    setCategory("");
+    setPrice("");
+    setQtyMode("1");
+    setQuantity("2");
+    setDisplayDate("");
+    setSource("");
+    setImageUrl("");
+    setNotes("");
+    setRestricted(false);
+    setViewerIds([]);
+    setAutofillMsg(undefined);
+  }
+
+  // After a successful add, keep the form open but clear fields for the next gift.
+  useEffect(() => {
+    if (wasPending.current && !pending && state.ok) {
+      clearForm();
+    }
+    wasPending.current = pending;
+  }, [pending, state.ok]);
 
   async function onAutofill() {
     setAutofillPending(true);
@@ -457,7 +486,13 @@ export function AddItemForm({
         <label className="label" htmlFor="category">
           Category
         </label>
-        <input id="category" name="category" className="field" />
+        <input
+          id="category"
+          name="category"
+          className="field"
+          value={category}
+          onChange={(e) => setCategory(e.target.value)}
+        />
       </div>
       <div>
         <label className="label" htmlFor="price">
@@ -500,9 +535,10 @@ export function AddItemForm({
             name="quantity"
             type="number"
             min={1}
-            defaultValue={2}
             className="field"
             required
+            value={quantity}
+            onChange={(e) => setQuantity(e.target.value)}
           />
         </div>
       ) : (
@@ -512,7 +548,14 @@ export function AddItemForm({
         <label className="label" htmlFor="displayDate">
           Show to others starting
         </label>
-        <input id="displayDate" name="displayDate" type="date" className="field" />
+        <input
+          id="displayDate"
+          name="displayDate"
+          type="date"
+          className="field"
+          value={displayDate}
+          onChange={(e) => setDisplayDate(e.target.value)}
+        />
         <span style={{ display: "block", marginTop: 4, fontSize: 11, color: "#555" }}>
           Leave blank to show immediately. Until this date, only you see the gift.
         </span>
@@ -574,7 +617,19 @@ export function AddItemForm({
             ) : (
               members.map((m) => (
                 <label key={m.id} className="flex items-center gap-2 text-sm">
-                  <input type="checkbox" name="viewerIds" value={m.id} />
+                  <input
+                    type="checkbox"
+                    name="viewerIds"
+                    value={m.id}
+                    checked={viewerIds.includes(m.id)}
+                    onChange={(e) => {
+                      setViewerIds((prev) =>
+                        e.target.checked
+                          ? [...prev, m.id]
+                          : prev.filter((id) => id !== m.id),
+                      );
+                    }}
+                  />
                   {m.display_name}
                 </label>
               ))
