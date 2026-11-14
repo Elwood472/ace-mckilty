@@ -171,7 +171,15 @@ export function ItemTable({
   if (items.length === 0) {
     return (
       <p className="p-6 text-muted">
-        No items match these filters{owner ? " — add one above." : "."}
+        No items match these filters
+        {owner ? (
+          <>
+            {" — "}
+            <Link href={`/lists/${listId}/add`}>add a gift</Link>.
+          </>
+        ) : (
+          "."
+        )}
       </p>
     );
   }

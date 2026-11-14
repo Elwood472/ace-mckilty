@@ -8,7 +8,7 @@ import { canViewList, isListOwner } from "@/lib/authz";
 import { categoryToc, listVisibleItems } from "@/lib/items";
 import { formatMd } from "@/lib/dates";
 import type { SortDir, SortKey } from "@/lib/types";
-import { AddItemForm, ItemTable, ListFilters } from "./list-client";
+import { ItemTable, ListFilters } from "./list-client";
 import {
   DecideRequestForm,
   InviteForm,
@@ -99,8 +99,6 @@ export default async function ListPage({ params, searchParams }: Props) {
       )
     : [];
 
-  const membersForRestricted = viewers;
-
   const sort = (one(sp.sort) || "title") as SortKey;
   const dir = (one(sp.dir) || "asc") as SortDir;
   const categoryParam = one(sp.category);
@@ -140,8 +138,12 @@ export default async function ListPage({ params, searchParams }: Props) {
       <main className="site-main">
         <p>
           <Link href="/dashboard">← Home</Link>
-          {" · "}
-          <Link href="/bought">Gifts I Bought</Link>
+          {owner ? (
+            <>
+              {" · "}
+              <Link href={`/lists/${listId}/add`}>Add a gift</Link>
+            </>
+          ) : null}
         </p>
         <h1 className="brand-title" style={{ fontSize: 22, marginTop: 8 }}>
           {list.title}
@@ -157,19 +159,6 @@ export default async function ListPage({ params, searchParams }: Props) {
 
         <div style={{ display: "flex", gap: 20, flexWrap: "wrap", marginTop: 14 }}>
           <div style={{ flex: "1 1 560px" }}>
-            {owner ? (
-              <div className="panel" style={{ width: "100%", marginBottom: 12 }}>
-                <div className="panel-head">Add a New Gift</div>
-                <div style={{ padding: 10 }}>
-                  <AddItemForm
-                    csrf={csrf}
-                    listId={listId}
-                    members={membersForRestricted}
-                  />
-                </div>
-              </div>
-            ) : null}
-
             <div className="panel" style={{ width: "100%", marginBottom: 12 }}>
               <div className="panel-head">Categories</div>
               <div style={{ padding: 8 }}>

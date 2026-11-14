@@ -29,6 +29,7 @@ export async function autofillItemFromUrl(
 
 async function revalidateList(listId: string) {
   revalidatePath(`/lists/${listId}`);
+  revalidatePath(`/lists/${listId}/add`);
   revalidatePath("/dashboard");
 }
 
