@@ -40,8 +40,8 @@ export function InviteForm({
         {pending ? "Sending…" : "Email invite link"}
       </button>
       <p style={{ fontSize: 12, color: "#555", margin: 0 }}>
-        Sends a magic link when <code>RESEND_API_KEY</code> is set; otherwise the
-        link is shown here.
+        Emails an invite link when <code>RESEND_API_KEY</code> is set; otherwise
+        the invite link is shown here.
       </p>
     </form>
   );

@@ -40,7 +40,7 @@ export function InviteMyListForm({
         placeholder="friend@example.com"
       />
       <button type="submit" className="btn btn-primary" disabled={pending}>
-        {pending ? "Sending…" : "Email magic invite link"}
+        {pending ? "Sending…" : "Email invite link"}
       </button>
     </form>
   );

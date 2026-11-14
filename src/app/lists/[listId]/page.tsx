@@ -157,6 +157,19 @@ export default async function ListPage({ params, searchParams }: Props) {
 
         <div style={{ display: "flex", gap: 20, flexWrap: "wrap", marginTop: 14 }}>
           <div style={{ flex: "1 1 560px" }}>
+            {owner ? (
+              <div className="panel" style={{ width: "100%", marginBottom: 12 }}>
+                <div className="panel-head">Add a New Gift</div>
+                <div style={{ padding: 10 }}>
+                  <AddItemForm
+                    csrf={csrf}
+                    listId={listId}
+                    members={membersForRestricted}
+                  />
+                </div>
+              </div>
+            ) : null}
+
             <div className="panel" style={{ width: "100%", marginBottom: 12 }}>
               <div className="panel-head">Categories</div>
               <div style={{ padding: 8 }}>
@@ -215,19 +228,6 @@ export default async function ListPage({ params, searchParams }: Props) {
                 dir={dir}
               />
             </div>
-
-            {owner ? (
-              <div className="panel" style={{ width: "100%" }}>
-                <div className="panel-head">Add a New Gift</div>
-                <div style={{ padding: 10 }}>
-                  <AddItemForm
-                    csrf={csrf}
-                    listId={listId}
-                    members={membersForRestricted}
-                  />
-                </div>
-              </div>
-            ) : null}
           </div>
 
           {owner ? (

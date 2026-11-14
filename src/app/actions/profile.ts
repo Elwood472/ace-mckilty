@@ -5,6 +5,7 @@ import { sql } from "@/lib/db";
 import { assertCsrf } from "@/lib/csrf";
 import { requireUser } from "@/lib/session";
 import { hashPassword } from "@/lib/password";
+import { ALL_QUESTIONNAIRE } from "@/lib/profile-fields";
 
 function s(fd: FormData, key: string): string {
   const v = fd.get(key);
@@ -36,48 +37,43 @@ export async function updateProfile(
       ]);
     }
 
+    const sets: string[] = [
+      "display_name = $1",
+      "birthday = $2",
+      "picture_url = $3",
+      "caption = $4",
+      "height = $5",
+      "shoe_size = $6",
+      "pants_size = $7",
+      "shirt_size = $8",
+      "profile_modified_at = now()",
+    ];
+    const params: unknown[] = [
+      displayName,
+      birthday,
+      s(formData, "pictureUrl"),
+      s(formData, "caption"),
+      s(formData, "height"),
+      s(formData, "shoeSize"),
+      s(formData, "pantsSize"),
+      s(formData, "shirtSize"),
+    ];
+
+    for (const field of ALL_QUESTIONNAIRE) {
+      params.push(s(formData, field.key));
+      sets.push(`${field.column} = $${params.length}`);
+    }
+
+    params.push(user.id);
     await sql(
-      `update users set
-         display_name = $1,
-         birthday = $2,
-         picture_url = $3,
-         caption = $4,
-         height = $5,
-         shoe_size = $6,
-         pants_size = $7,
-         shirt_size = $8,
-         favorite_color = $9,
-         favorite_quote = $10,
-         heroes = $11,
-         wishes = $12,
-         favorite_food = $13,
-         favorite_movie = $14,
-         notes = $15,
-         profile_modified_at = now()
-       where id = $16`,
-      [
-        displayName,
-        birthday,
-        s(formData, "pictureUrl"),
-        s(formData, "caption"),
-        s(formData, "height"),
-        s(formData, "shoeSize"),
-        s(formData, "pantsSize"),
-        s(formData, "shirtSize"),
-        s(formData, "favoriteColor"),
-        s(formData, "favoriteQuote"),
-        s(formData, "heroes"),
-        s(formData, "wishes"),
-        s(formData, "favoriteFood"),
-        s(formData, "favoriteMovie"),
-        s(formData, "notes"),
-        user.id,
-      ],
+      `update users set ${sets.join(", ")} where id = $${params.length}`,
+      params,
     );
 
     revalidatePath("/dashboard");
     revalidatePath("/profile");
     revalidatePath(`/profile/${user.id}`);
+    revalidatePath("/profile/edit");
     return { ok: "Profile saved." };
   } catch {
     return { error: "Could not save profile." };

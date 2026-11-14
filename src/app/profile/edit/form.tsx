@@ -4,10 +4,17 @@ import { useActionState } from "react";
 import { updateProfile, type ActionState } from "@/app/actions/profile";
 import { CsrfField } from "@/components/csrf-field";
 import { Flash } from "@/components/flash";
+import {
+  PROFILE_ENTERTAINMENT,
+  PROFILE_FOOD,
+  PROFILE_MISC,
+  PROFILE_PIVOT,
+  type ProfileField,
+} from "@/lib/profile-fields";
 
 const initial: ActionState = {};
 
-type Initial = {
+export type ProfileInitial = {
   display_name: string;
   birthday: string | null;
   picture_url: string;
@@ -16,13 +23,7 @@ type Initial = {
   shoe_size: string;
   pants_size: string;
   shirt_size: string;
-  favorite_color: string;
-  favorite_quote: string;
-  heroes: string;
-  wishes: string;
-  favorite_food: string;
-  favorite_movie: string;
-  notes: string;
+  [key: string]: string | null;
 };
 
 function Field({
@@ -57,19 +58,67 @@ function Field({
   );
 }
 
+function Area({
+  field,
+  data,
+}: {
+  field: ProfileField;
+  data: ProfileInitial;
+}) {
+  const value = String(data[field.column] ?? "");
+  return (
+    <label style={{ display: "block", marginBottom: 14 }}>
+      <span className="label">{field.label}</span>
+      <textarea
+        id={field.key}
+        className="field"
+        name={field.key}
+        rows={3}
+        defaultValue={value}
+      />
+      {field.hint ? (
+        <span style={{ display: "block", marginTop: 4, fontSize: 11, color: "#555" }}>
+          {field.hint}
+        </span>
+      ) : null}
+    </label>
+  );
+}
+
+function Section({
+  title,
+  fields,
+  data,
+}: {
+  title: string;
+  fields: ProfileField[];
+  data: ProfileInitial;
+}) {
+  return (
+    <section className="panel" style={{ width: "100%", marginBottom: 16 }}>
+      <div className="panel-head">{title}</div>
+      <div style={{ padding: 16 }}>
+        {fields.map((f) => (
+          <Area key={f.key} field={f} data={data} />
+        ))}
+      </div>
+    </section>
+  );
+}
+
 export function ProfileEditForm({
   csrf,
   initial: data,
   email,
 }: {
   csrf: string;
-  initial: Initial;
+  initial: ProfileInitial;
   email: string;
 }) {
   const [state, action, pending] = useActionState(updateProfile, initial);
 
   return (
-    <form action={action} style={{ maxWidth: 640, marginTop: 12 }}>
+    <form action={action} style={{ maxWidth: 720, marginTop: 12 }}>
       <CsrfField token={csrf} />
       <Flash error={state.error} ok={state.ok} />
 
@@ -86,7 +135,11 @@ export function ProfileEditForm({
               gap: 12,
             }}
           >
-            <Field label="Display name" name="displayName" defaultValue={data.display_name} />
+            <Field
+              label="Display name"
+              name="displayName"
+              defaultValue={data.display_name}
+            />
             <Field
               label="Birthday"
               name="birthday"
@@ -140,54 +193,14 @@ export function ProfileEditForm({
         </div>
       </section>
 
-      <section className="panel" style={{ width: "100%", marginBottom: 16 }}>
-        <div className="panel-head">About you</div>
-        <div style={{ padding: 16 }}>
-          <div
-            style={{
-              display: "grid",
-              gridTemplateColumns: "1fr 1fr",
-              gap: 12,
-            }}
-          >
-            <Field
-              label="Favorite color"
-              name="favoriteColor"
-              defaultValue={data.favorite_color}
-            />
-            <Field
-              label="Favorite food"
-              name="favoriteFood"
-              defaultValue={data.favorite_food}
-            />
-            <Field
-              label="Favorite movie"
-              name="favoriteMovie"
-              defaultValue={data.favorite_movie}
-            />
-            <Field
-              label="Heroes / role models"
-              name="heroes"
-              defaultValue={data.heroes}
-            />
-          </div>
-          <Field
-            label="Favorite quote"
-            name="favoriteQuote"
-            defaultValue={data.favorite_quote}
-          />
-          <Field label="Three wishes" name="wishes" defaultValue={data.wishes} />
-          <label style={{ display: "block", marginBottom: 14 }}>
-            <span className="label">Notes</span>
-            <textarea
-              className="field"
-              name="notes"
-              rows={4}
-              defaultValue={data.notes}
-            />
-          </label>
-        </div>
-      </section>
+      <Section title="Misc" fields={PROFILE_MISC} data={data} />
+      <Section title="Food Favorites" fields={PROFILE_FOOD} data={data} />
+      <Section
+        title="Entertainment & Sports Favorites"
+        fields={PROFILE_ENTERTAINMENT}
+        data={data}
+      />
+      <Section title="Bernard Pivot Wants To Know..." fields={PROFILE_PIVOT} data={data} />
 
       <button type="submit" className="btn btn-primary" disabled={pending}>
         {pending ? "Saving…" : "Save profile"}

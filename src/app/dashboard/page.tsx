@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { SiteHeader } from "@/components/site-header";
+import { HomeToolbar } from "@/components/home-toolbar";
 import { ensureCsrfToken } from "@/lib/csrf";
 import { sql } from "@/lib/db";
 import { getCurrentUser } from "@/lib/session";
@@ -86,57 +87,13 @@ export default async function DashboardPage() {
       <SiteHeader user={user} />
       <main className="site-main">
         <p className="brand-kicker">
-          <span className="brand-title">Gift Registry</span> — Home
+          <span className="brand-title" style={{ fontSize: 22 }}>
+            Ace McKilty Gift Registry
+          </span>{" "}
+          — Home
         </p>
 
-        <table
-          className="my-functions"
-          cellPadding={0}
-          cellSpacing={0}
-          style={{ marginTop: 12 }}
-        >
-          <tbody>
-            <tr className="head">
-              <td colSpan={2}>My Functions</td>
-            </tr>
-            <tr>
-              <td>
-                <Link href="/profile/edit" className="btn">
-                  Edit My Profile
-                </Link>
-              </td>
-              <td>
-                <Link href={`/profile/${user.id}`} className="btn">
-                  View My Profile
-                </Link>
-              </td>
-            </tr>
-            <tr>
-              <td>
-                <Link href={`/lists/${myListId}`} className="btn">
-                  Add a New Gift
-                </Link>
-              </td>
-              <td>
-                <Link href={`/lists/${myListId}`} className="btn">
-                  View My Gifts
-                </Link>
-              </td>
-            </tr>
-            <tr>
-              <td>
-                <Link href="/bought" className="btn">
-                  View Gifts I Bought
-                </Link>
-              </td>
-              <td>
-                <Link href="/removed" className="btn">
-                  View Gifts I Removed
-                </Link>
-              </td>
-            </tr>
-          </tbody>
-        </table>
+        <HomeToolbar myListId={myListId} userId={user.id} />
 
         <h2
           style={{

@@ -4,34 +4,18 @@ import { SiteHeader } from "@/components/site-header";
 import { ensureCsrfToken } from "@/lib/csrf";
 import { sql } from "@/lib/db";
 import { getCurrentUser } from "@/lib/session";
-import { ProfileEditForm } from "./form";
+import { QUESTIONNAIRE_COLUMNS } from "@/lib/profile-fields";
+import { ProfileEditForm, type ProfileInitial } from "./form";
 
 export default async function EditProfilePage() {
   const user = await getCurrentUser();
   if (!user) redirect("/login");
   const csrf = await ensureCsrfToken();
 
-  const rows = await sql<{
-    display_name: string;
-    email: string;
-    birthday: string | null;
-    picture_url: string;
-    caption: string;
-    height: string;
-    shoe_size: string;
-    pants_size: string;
-    shirt_size: string;
-    favorite_color: string;
-    favorite_quote: string;
-    heroes: string;
-    wishes: string;
-    favorite_food: string;
-    favorite_movie: string;
-    notes: string;
-  }>(
-    `select display_name, email, birthday::text as birthday, picture_url, caption,
-            height, shoe_size, pants_size, shirt_size, favorite_color, favorite_quote,
-            heroes, wishes, favorite_food, favorite_movie, notes
+  const qCols = QUESTIONNAIRE_COLUMNS.join(", ");
+  const rows = await sql<ProfileInitial>(
+    `select display_name, birthday::text as birthday, picture_url, caption,
+            height, shoe_size, pants_size, shirt_size, ${qCols}
      from users where id = $1`,
     [user.id],
   );
@@ -50,7 +34,8 @@ export default async function EditProfilePage() {
         </h1>
         <p style={{ color: "#555", maxWidth: 560 }}>
           Keep your birthday up to date so friends see you in the right order on
-          the home page.
+          the home page. The questionnaire below matches the old Ace McKilty
+          profile form.
         </p>
         <ProfileEditForm csrf={csrf} initial={rows[0]} email={user.email} />
       </main>

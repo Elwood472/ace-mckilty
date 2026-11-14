@@ -63,6 +63,11 @@ export async function listVisibleItems(
     ))`,
   );
 
+  // Show-to-others starting date: non-owners only see items that are due
+  if (!owner) {
+    where.push(`(i.display_date is null or i.display_date <= current_date)`);
+  }
+
   if (filters.category != null) {
     params.push(filters.category);
     where.push(`i.category = $${params.length}`);

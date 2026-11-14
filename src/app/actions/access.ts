@@ -83,7 +83,7 @@ export async function createListEmailInvite(
     }
     if (sent.mode === "stub") {
       return {
-        ok: `Invite created. Email stubbed (set RESEND_API_KEY to send). Link: ${invitePath}`,
+        ok: `Invite created. Email stubbed (set RESEND_API_KEY to send). Invite link: ${invitePath}`,
       };
     }
     return { ok: `Invite emailed to ${email}.` };

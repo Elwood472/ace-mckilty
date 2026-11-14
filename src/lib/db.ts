@@ -73,6 +73,10 @@ async function getLocal(): Promise<PGlite> {
   return globalForDb.__giftRegistryPglite;
 }
 
+/**
+ * File-backed PGlite under `.data/pglite`. Survives process restarts.
+ * Never delete `.data` during normal testing — that wipes local accounts.
+ */
 async function startLocal(): Promise<PGlite> {
   const dataDir = path.join(process.cwd(), ".data", "pglite");
   await mkdir(dataDir, { recursive: true });

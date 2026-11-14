@@ -131,6 +131,14 @@ a:active {
   border: 1px solid var(--border);
 }
 
+.legacy-table th a,
+.legacy-table th a:visited,
+.legacy-table th a:hover,
+.legacy-table th a:active {
+  color: #fff !important;
+  text-decoration: underline;
+}
+
 .legacy-table td {
   border-left: 1px solid var(--border);
   border-right: 1px solid var(--border);
@@ -224,17 +232,32 @@ a.btn:hover {
   z-index: 1;
 }
 
-.my-functions td {
-  border: 1px solid var(--border);
-  padding: 6px 10px;
-  background: #fff;
+.home-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 2px 0;
+  margin-top: 12px;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--border-soft);
+  font-size: 13px;
 }
 
-.my-functions .head td {
-  background: var(--navy);
-  color: #fff;
+.home-toolbar a {
   font-weight: 700;
-  border: 1px solid var(--border);
+  color: var(--navy);
+  text-decoration: none;
+  padding: 2px 4px;
+}
+
+.home-toolbar a:hover {
+  text-decoration: underline;
+}
+
+.home-toolbar-sep {
+  color: #666;
+  margin: 0 6px;
+  user-select: none;
 }
 
 .taken-text {

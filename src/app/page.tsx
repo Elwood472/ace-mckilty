@@ -11,9 +11,12 @@ export default async function HomePage() {
     <>
       <SiteHeader user={null} />
       <main className="site-main">
-        <p className="brand-kicker">
-          Welcome to the family <span className="brand-title">Gift Registry</span>
+        <p className="brand-kicker" style={{ marginTop: 8 }}>
+          Welcome to the
         </p>
+        <h1 className="brand-title" style={{ marginTop: 4 }}>
+          Ace McKilty Gift Registry
+        </h1>
         <p style={{ maxWidth: 560, marginTop: 12 }}>
           Keep a personal wish list and share it with the people you choose —
           invite by email, or let someone request access and approve them. When

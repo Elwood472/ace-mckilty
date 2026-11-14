@@ -7,11 +7,19 @@ import { getCurrentUser } from "@/lib/session";
 import { canViewList } from "@/lib/authz";
 import { getPersonalListId } from "@/lib/lists";
 import { formatMdY } from "@/lib/dates";
+import {
+  PROFILE_ENTERTAINMENT,
+  PROFILE_FOOD,
+  PROFILE_MISC,
+  PROFILE_PIVOT,
+  QUESTIONNAIRE_COLUMNS,
+  type ProfileField,
+} from "@/lib/profile-fields";
 import { RequestAccessButton } from "./request-access";
 
 type Props = { params: Promise<{ userId: string }> };
 
-type Profile = {
+type ProfileRow = {
   id: string;
   display_name: string;
   email: string;
@@ -23,26 +31,46 @@ type Profile = {
   shoe_size: string;
   pants_size: string;
   shirt_size: string;
-  favorite_color: string;
-  favorite_quote: string;
-  heroes: string;
-  wishes: string;
-  favorite_food: string;
-  favorite_movie: string;
-  notes: string;
+  [key: string]: string | null;
 };
+
+function row(label: string, value: string, alt: "a" | "b") {
+  return (
+    <tr>
+      <td
+        className={alt === "a" ? "alt-a" : "alt-b"}
+        style={{ width: 220, fontWeight: 700 }}
+      >
+        {label}
+      </td>
+      <td className={alt === "a" ? "alt-a" : "alt-b"}>
+        {value ? (
+          <span style={{ whiteSpace: "pre-wrap" }}>{value}</span>
+        ) : (
+          "\u00a0"
+        )}
+      </td>
+    </tr>
+  );
+}
+
+function sectionRows(fields: ProfileField[], p: ProfileRow) {
+  return fields.map((f, i) =>
+    row(f.label, String(p[f.column] ?? ""), i % 2 === 0 ? "a" : "b"),
+  );
+}
 
 export default async function ProfilePage({ params }: Props) {
   const { userId } = await params;
   const me = await getCurrentUser();
   if (!me) redirect("/login");
 
-  const rows = await sql<Profile>(
+  const qCols = QUESTIONNAIRE_COLUMNS.join(", ");
+  const rows = await sql<ProfileRow>(
     `select id, display_name, email, birthday::text as birthday,
             profile_modified_at::text as profile_modified_at,
             picture_url, caption, height, shoe_size, pants_size, shirt_size,
-            favorite_color, favorite_quote, heroes, wishes,
-            favorite_food, favorite_movie, notes
+            ${qCols}
      from users where id = $1`,
     [userId],
   );
@@ -62,17 +90,6 @@ export default async function ProfilePage({ params }: Props) {
       [theirListId, me.id],
     );
     access = pending.length ? "pending" : "none";
-  }
-
-  function row(label: string, value: string, alt: "a" | "b") {
-    return (
-      <tr>
-        <td className={alt === "a" ? "alt-a" : "alt-b"} style={{ width: 180, fontWeight: 700 }}>
-          {label}
-        </td>
-        <td className={alt === "a" ? "alt-a" : "alt-b"}>{value || "\u00a0"}</td>
-      </tr>
-    );
   }
 
   return (
@@ -96,7 +113,10 @@ export default async function ProfilePage({ params }: Props) {
         </p>
 
         {access === "none" && theirListId ? (
-          <div className="panel" style={{ maxWidth: 560, marginTop: 8, marginBottom: 12 }}>
+          <div
+            className="panel"
+            style={{ maxWidth: 640, marginTop: 8, marginBottom: 12 }}
+          >
             <div className="panel-head">Wish list access</div>
             <div style={{ padding: 10 }}>
               <p style={{ marginTop: 0 }}>
@@ -114,14 +134,23 @@ export default async function ProfilePage({ params }: Props) {
           <p style={{ color: "#555" }}>Access request pending approval.</p>
         ) : null}
 
-        <table className="profile-table" cellPadding={0} cellSpacing={0} style={{ maxWidth: 560, marginTop: 8 }}>
+        <table
+          className="profile-table"
+          cellPadding={0}
+          cellSpacing={0}
+          style={{ maxWidth: 640, marginTop: 8 }}
+        >
           <tbody>
             <tr>
               <td className="sec-head" colSpan={2}>
                 {p.display_name}&apos;s Profile
               </td>
             </tr>
-            {row("Last Modified", p.profile_modified_at ? formatMdY(p.profile_modified_at) : "—", "a")}
+            {row(
+              "Last Modified",
+              p.profile_modified_at ? formatMdY(p.profile_modified_at) : "—",
+              "a",
+            )}
             {row("Name", p.display_name, "b")}
             {row("E-mail", p.email, "a")}
             {row("Birthday", p.birthday ? formatMdY(p.birthday) : "—", "b")}
@@ -140,7 +169,11 @@ export default async function ProfilePage({ params }: Props) {
             ) : null}
             {p.caption ? (
               <tr>
-                <td className="alt-b" colSpan={2} style={{ fontStyle: "italic" }}>
+                <td
+                  className="alt-b"
+                  colSpan={2}
+                  style={{ fontStyle: "italic" }}
+                >
                   {p.caption}
                 </td>
               </tr>
@@ -150,42 +183,34 @@ export default async function ProfilePage({ params }: Props) {
                 Sizes
               </td>
             </tr>
-            <tr>
-              <td className="size-a" style={{ fontWeight: 700 }}>
-                Height
-              </td>
-              <td className="size-a">{p.height || "\u00a0"}</td>
-            </tr>
-            <tr>
-              <td className="size-a" style={{ fontWeight: 700 }}>
-                Shoe Size
-              </td>
-              <td className="size-a">{p.shoe_size || "\u00a0"}</td>
-            </tr>
-            <tr>
-              <td className="size-b" style={{ fontWeight: 700 }}>
-                Pants Size
-              </td>
-              <td className="size-b">{p.pants_size || "\u00a0"}</td>
-            </tr>
-            <tr>
-              <td className="size-a" style={{ fontWeight: 700 }}>
-                Shirt Size
-              </td>
-              <td className="size-a">{p.shirt_size || "\u00a0"}</td>
-            </tr>
+            {row("Height", p.height, "a")}
+            {row("Shoe Size", p.shoe_size, "b")}
+            {row("Pants Size", p.pants_size, "a")}
+            {row("Shirt Size", p.shirt_size, "b")}
             <tr>
               <td className="sec-head" colSpan={2}>
-                Miscellaneous
+                Misc
               </td>
             </tr>
-            {row("Favorite Color", p.favorite_color, "a")}
-            {row("Favorite Quote", p.favorite_quote, "b")}
-            {row("Heroes/Role Models", p.heroes, "a")}
-            {row("Three Wishes", p.wishes, "b")}
-            {row("Favorite Food", p.favorite_food, "a")}
-            {row("Favorite Movie", p.favorite_movie, "b")}
-            {row("Notes", p.notes, "a")}
+            {sectionRows(PROFILE_MISC, p)}
+            <tr>
+              <td className="sec-head" colSpan={2}>
+                Food Favorites
+              </td>
+            </tr>
+            {sectionRows(PROFILE_FOOD, p)}
+            <tr>
+              <td className="sec-head" colSpan={2}>
+                Entertainment &amp; Sports Favorites
+              </td>
+            </tr>
+            {sectionRows(PROFILE_ENTERTAINMENT, p)}
+            <tr>
+              <td className="sec-head" colSpan={2}>
+                Bernard Pivot Wants To Know...
+              </td>
+            </tr>
+            {sectionRows(PROFILE_PIVOT, p)}
           </tbody>
         </table>
       </main>

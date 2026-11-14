@@ -21,7 +21,7 @@ export default async function FaqPage() {
         <h3>Sharing (no friend circles)</h3>
         <p>
           There are no overlapping friend circles. You invite people to a list
-          (email magic link when possible), or someone searches for you and
+          (email invite link when possible), or someone searches for you and
           requests access. You approve or deny each request.
         </p>
         <h3>Birthdays</h3>
@@ -45,7 +45,13 @@ export default async function FaqPage() {
         <p>
           Email an invite link from home or from a list&apos;s invite panel. Live
           email needs the <code>RESEND_API_KEY</code> secret; otherwise the invite
-          is still created and the magic link is shown on screen.
+          is still created and the invite link is shown on screen.
+        </p>
+        <h3>Show to others starting</h3>
+        <p>
+          When adding a gift, you can set a date when it becomes visible to people
+          with access. Leave it blank to show immediately. List owners always see
+          their own items.
         </p>
         <h3>Put it back / purge</h3>
         <p>

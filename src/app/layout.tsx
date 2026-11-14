@@ -2,9 +2,9 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Gift Registry",
+  title: "Ace McKilty Gift Registry",
   description:
-    "Family wish lists with secret purchases — mark gifts bought without tipping off the owner.",
+    "Wish lists with secret purchases — mark gifts bought without tipping off the owner.",
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {

@@ -51,7 +51,9 @@ export default async function InvitePage({ params }: Props) {
       <SiteHeader user={user} />
       <main className="site-main" style={{ maxWidth: 480 }}>
         <p className="brand-kicker">
-          <span className="brand-title">Gift Registry</span>
+          <span className="brand-title" style={{ fontSize: 22 }}>
+            Ace McKilty Gift Registry
+          </span>
         </p>
         <h1 style={{ color: "#000080", fontSize: 20, marginTop: 12 }}>
           View {invite.list_title}

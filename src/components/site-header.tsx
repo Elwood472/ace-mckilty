@@ -18,18 +18,17 @@ export function SiteHeader({ user }: { user: User | null }) {
                   border: "1px solid #000",
                   color: "#fff",
                   fontWeight: 700,
-                  fontSize: 18,
+                  fontSize: 14,
                   textAlign: "center",
                   lineHeight: "40px",
                 }}
               >
-                GR
+                AM
               </div>
             </td>
             <td valign="middle">
-              <Link href={user ? "/dashboard" : "/"} className="brand-kicker">
-                Family{" "}
-                <span className="brand-title">Gift Registry</span>
+              <Link href={user ? "/dashboard" : "/"} className="brand-title" style={{ fontSize: 22 }}>
+                Ace McKilty Gift Registry
               </Link>
             </td>
             <td valign="middle" align="right">

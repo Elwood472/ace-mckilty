@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useActionState, useState } from "react";
 import {
+  autofillItemFromUrl,
   createItem,
   deleteItem,
   markPurchased,
@@ -104,7 +105,7 @@ export function ListFilters({
           <option value="title">Title</option>
           <option value="price">Price</option>
           <option value="category">Category</option>
-          <option value="display_date">Display date</option>
+          <option value="display_date">Show starting</option>
         </select>
       </div>
       <div>
@@ -143,7 +144,7 @@ function SortHeader({
   const nextDir = sort === col && dir === "asc" ? "desc" : "asc";
   const href = `/lists/${listId}?sort=${col}&dir=${nextDir}`;
   return (
-    <Link href={href} className="inline-flex items-center gap-1 hover:text-amber-deep">
+    <Link href={href} style={{ color: "#fff", fontWeight: 700 }}>
       {label}
       {sort === col ? (dir === "asc" ? " ↑" : " ↓") : ""}
     </Link>
@@ -170,7 +171,7 @@ export function ItemTable({
   if (items.length === 0) {
     return (
       <p className="p-6 text-muted">
-        No items match these filters{owner ? " — add one below." : "."}
+        No items match these filters{owner ? " — add one above." : "."}
       </p>
     );
   }
@@ -192,7 +193,7 @@ export function ItemTable({
             <th>Store</th>
             <th>Qty</th>
             <th>
-              <SortHeader label="When" col="display_date" sort={sort} dir={dir}  listId={listId} />
+              <SortHeader label="Show starting" col="display_date" sort={sort} dir={dir}  listId={listId} />
             </th>
             <th>Action</th>
           </tr>
@@ -363,6 +364,35 @@ export function AddItemForm({
   const [state, action, pending] = useActionState(createItem, initial);
   const [qtyMode, setQtyMode] = useState("1");
   const [restricted, setRestricted] = useState(false);
+  const [url, setUrl] = useState("");
+  const [title, setTitle] = useState("");
+  const [price, setPrice] = useState("");
+  const [source, setSource] = useState("");
+  const [imageUrl, setImageUrl] = useState("");
+  const [notes, setNotes] = useState("");
+  const [autofillMsg, setAutofillMsg] = useState<string | undefined>();
+  const [autofillPending, setAutofillPending] = useState(false);
+
+  async function onAutofill() {
+    setAutofillPending(true);
+    setAutofillMsg(undefined);
+    try {
+      const result = await autofillItemFromUrl(url);
+      if (result.title) setTitle(result.title);
+      if (result.price) setPrice(result.price);
+      if (result.source) setSource(result.source);
+      if (result.imageUrl) setImageUrl(result.imageUrl);
+      if (result.notes) setNotes(result.notes);
+      setAutofillMsg(
+        result.warning ||
+          (result.title
+            ? "Filled from link — edit anything that looks off."
+            : "No fields found — edit manually."),
+      );
+    } finally {
+      setAutofillPending(false);
+    }
+  }
 
   return (
     <form action={action} className="mt-4 grid gap-4 sm:grid-cols-2">
@@ -370,12 +400,50 @@ export function AddItemForm({
       <input type="hidden" name="listId" value={listId} />
       <div className="sm:col-span-2">
         <Flash error={state.error} ok={state.ok} />
+        {autofillMsg ? (
+          <p style={{ fontSize: 12, color: "#333", marginTop: 0 }}>{autofillMsg}</p>
+        ) : null}
+      </div>
+      <div className="sm:col-span-2">
+        <label className="label" htmlFor="url">
+          Gift URL
+        </label>
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+          <input
+            id="url"
+            name="url"
+            type="url"
+            className="field"
+            style={{ flex: "1 1 240px" }}
+            placeholder="https://"
+            value={url}
+            onChange={(e) => setUrl(e.target.value)}
+          />
+          <button
+            type="button"
+            className="btn"
+            disabled={autofillPending || !url.trim()}
+            onClick={() => void onAutofill()}
+          >
+            {autofillPending ? "Fetching…" : "Auto-fill"}
+          </button>
+        </div>
+        <span style={{ display: "block", marginTop: 4, fontSize: 11, color: "#555" }}>
+          Paste a product link, then Auto-fill. You can edit every field afterward.
+        </span>
       </div>
       <div className="sm:col-span-2">
         <label className="label" htmlFor="title">
           Title
         </label>
-        <input id="title" name="title" className="field" required />
+        <input
+          id="title"
+          name="title"
+          className="field"
+          required
+          value={title}
+          onChange={(e) => setTitle(e.target.value)}
+        />
       </div>
       <div>
         <label className="label" htmlFor="category">
@@ -387,7 +455,16 @@ export function AddItemForm({
         <label className="label" htmlFor="price">
           Price
         </label>
-        <input id="price" name="price" type="number" min="0" step="0.01" className="field" />
+        <input
+          id="price"
+          name="price"
+          type="number"
+          min="0"
+          step="0.01"
+          className="field"
+          value={price}
+          onChange={(e) => setPrice(e.target.value)}
+        />
       </div>
       <div>
         <label className="label" htmlFor="qtyMode">
@@ -425,15 +502,12 @@ export function AddItemForm({
       )}
       <div>
         <label className="label" htmlFor="displayDate">
-          Display date
+          Show to others starting
         </label>
         <input id="displayDate" name="displayDate" type="date" className="field" />
-      </div>
-      <div>
-        <label className="label" htmlFor="url">
-          URL
-        </label>
-        <input id="url" name="url" type="url" className="field" placeholder="https://" />
+        <span style={{ display: "block", marginTop: 4, fontSize: 11, color: "#555" }}>
+          Leave blank to show immediately. Until this date, only you see the gift.
+        </span>
       </div>
       <div>
         <label className="label" htmlFor="source">
@@ -443,20 +517,35 @@ export function AddItemForm({
           id="source"
           name="source"
           className="field"
-          placeholder="Amazon (auto from URL if blank)"
+          placeholder="Amazon (from URL if blank)"
+          value={source}
+          onChange={(e) => setSource(e.target.value)}
         />
       </div>
       <div className="sm:col-span-2">
         <label className="label" htmlFor="imageUrl">
           Image URL (shown at 64×64)
         </label>
-        <input id="imageUrl" name="imageUrl" type="url" className="field" />
+        <input
+          id="imageUrl"
+          name="imageUrl"
+          type="url"
+          className="field"
+          value={imageUrl}
+          onChange={(e) => setImageUrl(e.target.value)}
+        />
       </div>
       <div className="sm:col-span-2">
         <label className="label" htmlFor="notes">
           Notes
         </label>
-        <textarea id="notes" name="notes" className="field min-h-24" />
+        <textarea
+          id="notes"
+          name="notes"
+          className="field min-h-24"
+          value={notes}
+          onChange={(e) => setNotes(e.target.value)}
+        />
       </div>
       <div className="sm:col-span-2">
         <label className="flex items-center gap-2 text-sm font-semibold text-muted">
@@ -471,7 +560,9 @@ export function AddItemForm({
         {restricted && (
           <div className="mt-2 max-h-40 space-y-1 overflow-auto rounded-lg border border-[rgba(20,53,44,0.1)] bg-white/60 p-2">
             {members.length === 0 ? (
-              <p className="text-sm text-muted">No other members to share with yet.</p>
+              <p className="text-sm text-muted">
+                No one with access yet — invite someone first.
+              </p>
             ) : (
               members.map((m) => (
                 <label key={m.id} className="flex items-center gap-2 text-sm">

@@ -11,6 +11,7 @@ import {
   requireListViewer,
 } from "@/lib/authz";
 import { resolveSource } from "@/lib/source";
+import { autofillFromGiftUrl, type AutofillResult } from "@/lib/autofill";
 
 function s(fd: FormData, key: string): string {
   const v = fd.get(key);
@@ -18,6 +19,13 @@ function s(fd: FormData, key: string): string {
 }
 
 export type ActionState = { error?: string; ok?: string };
+
+export async function autofillItemFromUrl(
+  url: string,
+): Promise<AutofillResult> {
+  await requireUser();
+  return autofillFromGiftUrl(url);
+}
 
 async function revalidateList(listId: string) {
   revalidatePath(`/lists/${listId}`);

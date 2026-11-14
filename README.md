@@ -1,6 +1,6 @@
-# Gift Registry
+# Ace McKilty Gift Registry
 
-Family wish lists with secret purchases. Built with Next.js (App Router), TypeScript, and Postgres (`pg` in production, PGlite locally when `DATABASE_URL` is unset).
+Wish lists with secret purchases. Built with Next.js (App Router), TypeScript, and Postgres (`pg` when `DATABASE_URL` is set; **file-backed PGlite** locally when unset).
 
 ## Local development
 
@@ -10,7 +10,18 @@ npm install
 npm run dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000). Local runs use in-memory PGlite (migrations applied on first query).
+Open [http://localhost:3000](http://localhost:3000).
+
+### How local data persists
+
+When `DATABASE_URL` is unset, the app stores Postgres data in **`.data/pglite/`** (file-backed PGlite). Accounts, lists, and gifts **survive `npm run dev` restarts**.
+
+- Do **not** delete `.data/` while testing — that wipes all local accounts.
+- `.data/` is gitignored; it is only for this machine / cloud agent workspace.
+- Schema migrations under `migrations/` apply once and are recorded in `schema_migrations`; they do not reset user rows.
+- Optional demo/seed scripts may add sample users; they must never truncate existing accounts on boot (this app does not auto-reset users).
+
+With `DATABASE_URL` set (hosted Postgres), persistence is the remote database instead.
 
 ## Stack notes
 
