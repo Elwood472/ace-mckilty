@@ -8,6 +8,8 @@ import {
 import { getCurrentUser } from "@/lib/session";
 import { ImportDataForm } from "./form";
 
+export const dynamic = "force-dynamic";
+
 export default async function ImportDataPage() {
   // No indexable hints when disabled or permanently locked.
   if (!isImportSecretConfigured()) {

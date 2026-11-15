@@ -1,12 +1,13 @@
 import Link from "next/link";
 import type { User } from "@/lib/types";
 import { signOut } from "@/app/actions/auth";
+import { shouldShowImportLink } from "@/lib/import-nav";
 
 /**
  * Gift Registry chrome under Ace McKilty.
  * Brand mark links to the public hub (`/`); Gift Registry home is `/gifts` or `/dashboard`.
  */
-export function SiteHeader({
+export async function SiteHeader({
   user,
   app = "gifts",
 }: {
@@ -15,6 +16,7 @@ export function SiteHeader({
   app?: "gifts";
 }) {
   const giftsHome = user ? "/dashboard" : "/gifts";
+  const showImport = user ? await shouldShowImportLink(user.id) : false;
 
   return (
     <header className="site-header">
@@ -79,6 +81,12 @@ export function SiteHeader({
                   <Link href="/dashboard">Home</Link>
                   {" · "}
                   <Link href="/faq">FAQ</Link>
+                  {showImport ? (
+                    <>
+                      {" · "}
+                      <Link href="/import-data">Import</Link>
+                    </>
+                  ) : null}
                   {" · "}
                   <form action={signOut} style={{ display: "inline" }}>
                     <button
