@@ -20,8 +20,9 @@ import {
 
 const MATH_TTL_MS = 10 * 60 * 1000;
 /** Hex leading zeros required of sha256(`${powSalt}:${powNonce}`). */
-const POW_DIFFICULTY = 5;
-const MIN_DWELL_MS = 3000;
+/** Keep low enough for browsers (~tens of ms), high enough to slow naive bots. */
+const POW_DIFFICULTY = 3;
+const MIN_DWELL_MS = 2500;
 
 /** Process-lifetime secret when no env secret is bound (never a shipped literal). */
 let runtimeSecret: Buffer | null = null;
@@ -32,6 +33,11 @@ function hmacSecretBytes(): Buffer {
     process.env.CSRF_SECRET?.trim() ||
     process.env.TURNSTILE_SECRET_KEY?.trim();
   if (fromEnv) return Buffer.from(fromEnv, "utf8");
+  // Stable across workers when hosted (derived from DB URL — not a shipped literal).
+  const material = process.env.DATABASE_URL?.trim();
+  if (material) {
+    return createHash("sha256").update(`captcha-hmac:${material}`).digest();
+  }
   if (!runtimeSecret) {
     runtimeSecret = randomBytes(32);
   }

@@ -24,11 +24,6 @@ export async function checkRateLimit(
       "insert into auth_rate_limits (key, hits, window_start) values ($1, 1, now())",
       [key],
     );
-    // Opportunistic cleanup of stale keys (best-effort; ignore failures).
-    void sql(
-      `delete from auth_rate_limits
-       where window_start < now() - interval '2 days'`,
-    ).catch(() => {});
     return true;
   }
   const row = rows[0];

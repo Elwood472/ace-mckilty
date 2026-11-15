@@ -13,7 +13,7 @@ import {
 } from "@/lib/authz";
 import { resolveSource } from "@/lib/source";
 import { autofillFromGiftUrl, type AutofillResult } from "@/lib/autofill";
-import { normalizeStoredHttpUrl } from "@/lib/urls";
+import { normalizeStoredHttpUrl } from "@/lib/url-safety";
 import { checkRateLimit } from "@/lib/rate-limit";
 import { getClientIp } from "@/lib/client-ip";
 

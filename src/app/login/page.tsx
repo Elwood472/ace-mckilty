@@ -3,7 +3,7 @@ import { AuthForm } from "@/components/auth-form";
 import { SiteHeader } from "@/components/site-header";
 import { ensureCsrfToken } from "@/lib/csrf";
 import { getCurrentUser } from "@/lib/session";
-import { safeInternalPath } from "@/lib/urls";
+import { safeInternalPath } from "@/lib/url-safety";
 import { getTurnstileSiteKey, issueMathChallenge } from "@/lib/captcha";
 
 export default async function LoginPage({
