@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useMemo } from "react";
+import { useActionState, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { signIn, signUp, type AuthState } from "@/app/actions/auth";
 import { CsrfField } from "@/components/csrf-field";
@@ -8,6 +8,32 @@ import { TurnstileField } from "@/components/turnstile-field";
 import type { MathChallenge } from "@/lib/captcha";
 
 const initial: AuthState = {};
+
+async function sha256Hex(message: string): Promise<string> {
+  const data = new TextEncoder().encode(message);
+  const digest = await crypto.subtle.digest("SHA-256", data);
+  return [...new Uint8Array(digest)]
+    .map((b) => b.toString(16).padStart(2, "0"))
+    .join("");
+}
+
+/** Find a nonce such that sha256(`${salt}:${nonce}`) has `difficulty` leading zero hex digits. */
+async function solvePow(
+  salt: string,
+  difficulty: number,
+): Promise<string> {
+  const prefix = "0".repeat(Math.max(1, Math.min(8, difficulty)));
+  let n = 0;
+  // Yield to the UI every so often so the form stays responsive.
+  while (true) {
+    for (let i = 0; i < 200; i += 1) {
+      const nonce = String(n++);
+      const hex = await sha256Hex(`${salt}:${nonce}`);
+      if (hex.startsWith(prefix)) return nonce;
+    }
+    await new Promise((r) => setTimeout(r, 0));
+  }
+}
 
 export function AuthForm({
   mode,
@@ -25,6 +51,31 @@ export function AuthForm({
   const action = mode === "signup" ? signUp : signIn;
   const [state, formAction, pending] = useActionState(action, initial);
   const issuedAt = useMemo(() => String(Date.now()), []);
+  const [powNonce, setPowNonce] = useState("");
+  const [powReady, setPowReady] = useState(!mathChallenge);
+
+  useEffect(() => {
+    if (!mathChallenge) {
+      setPowReady(true);
+      return;
+    }
+    let cancelled = false;
+    setPowReady(false);
+    setPowNonce("");
+    void (async () => {
+      const nonce = await solvePow(
+        mathChallenge.powSalt,
+        mathChallenge.powDifficulty,
+      );
+      if (!cancelled) {
+        setPowNonce(nonce);
+        setPowReady(true);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [mathChallenge]);
 
   return (
     <form
@@ -104,6 +155,12 @@ export function AuthForm({
       ) : mathChallenge ? (
         <div style={{ marginBottom: 12 }}>
           <input type="hidden" name="captcha_token" value={mathChallenge.token} />
+          <input
+            type="hidden"
+            name="captcha_pow_salt"
+            value={mathChallenge.powSalt}
+          />
+          <input type="hidden" name="captcha_pow_nonce" value={powNonce} />
           <label className="label" htmlFor="captcha_answer">
             {mathChallenge.prompt}
           </label>
@@ -115,13 +172,22 @@ export function AuthForm({
             inputMode="numeric"
             autoComplete="off"
           />
+          {!powReady ? (
+            <p style={{ marginTop: 6, fontSize: 12, color: "#555" }}>
+              Preparing security check…
+            </p>
+          ) : null}
         </div>
       ) : null}
 
       {state.error && (
         <p style={{ color: "#cc0000", fontWeight: 700 }}>{state.error}</p>
       )}
-      <button type="submit" className="btn btn-primary" disabled={pending}>
+      <button
+        type="submit"
+        className="btn btn-primary"
+        disabled={pending || (!!mathChallenge && !powReady)}
+      >
         {pending
           ? "Please wait…"
           : mode === "signup"

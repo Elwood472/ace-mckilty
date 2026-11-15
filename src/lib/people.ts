@@ -178,6 +178,9 @@ export async function searchPeople(
   `;
 
   const byExactEmail = looksLikeEmail(q);
+  // Name search: require 3+ chars and cap results to slow directory scraping.
+  if (!byExactEmail && q.length < 3) return [];
+
   const rows = byExactEmail
     ? await sql<PeopleSearchRow>(
         `${selectHit}
@@ -191,7 +194,7 @@ export async function searchPeople(
          where u.id <> $1
            and u.display_name ilike $2
          order by u.display_name
-         limit 20`,
+         limit 8`,
         [viewerId, `%${q}%`],
       );
 

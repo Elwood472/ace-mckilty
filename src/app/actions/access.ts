@@ -46,9 +46,10 @@ export async function createListEmailInvite(
     }
     const ip = await getClientIp();
     // Tight limits: open sign-up must not turn Resend into a spam relay.
+    // Include IP + site-wide caps so spinning new accounts still hits a ceiling.
     if (
       !(await checkRateLimit(`create-invite:${user.id}`, {
-        maxHits: 5,
+        maxHits: 3,
         windowMs: 15 * 60 * 1000,
       }))
     ) {
@@ -56,36 +57,52 @@ export async function createListEmailInvite(
     }
     if (
       !(await checkRateLimit(`create-invite-ip:${ip}`, {
-        maxHits: 10,
+        maxHits: 6,
         windowMs: 15 * 60 * 1000,
       }))
     ) {
       return { error: "Too many invites. Try again later." };
     }
     if (
+      !(await checkRateLimit(`outbound-email-ip:${ip}`, {
+        maxHits: 8,
+        windowMs: 60 * 60 * 1000,
+      }))
+    ) {
+      return { error: "Too many emails from this network. Try again later." };
+    }
+    if (
+      !(await checkRateLimit(`outbound-email-global`, {
+        maxHits: 80,
+        windowMs: 60 * 60 * 1000,
+      }))
+    ) {
+      return { error: "Email sending is temporarily limited. Try again later." };
+    }
+    if (
       !(await checkRateLimit(`create-invite-day:${user.id}`, {
-        maxHits: 20,
+        maxHits: 10,
         windowMs: 24 * 60 * 60 * 1000,
       }))
     ) {
       return { error: "Daily invite limit reached. Try again tomorrow." };
     }
-    // New accounts: only a couple of invites in the first day.
+    // New accounts: only one invite in the first 48 hours.
     const age = await sql<{ created_at: string }>(
       "select created_at::text as created_at from users where id = $1",
       [user.id],
     );
     const createdMs = age[0] ? new Date(age[0].created_at).getTime() : 0;
-    if (Date.now() - createdMs < 24 * 60 * 60 * 1000) {
+    if (Date.now() - createdMs < 48 * 60 * 60 * 1000) {
       if (
         !(await checkRateLimit(`create-invite-new:${user.id}`, {
-          maxHits: 3,
-          windowMs: 24 * 60 * 60 * 1000,
+          maxHits: 1,
+          windowMs: 48 * 60 * 60 * 1000,
         }))
       ) {
         return {
           error:
-            "New accounts can send only a few invites on the first day. Try again later.",
+            "New accounts can send only one invite in the first two days. Try again later.",
         };
       }
     }
@@ -220,8 +237,56 @@ export async function requestListAccess(
     );
     if (amOwner.length) return { error: "You already own this list." };
 
-    if (!(await checkRateLimit(`access-req:${user.id}`))) {
+    const ip = await getClientIp();
+    if (
+      !(await checkRateLimit(`access-req:${user.id}`, {
+        maxHits: 8,
+        windowMs: 15 * 60 * 1000,
+      }))
+    ) {
       return { error: "Too many requests. Try again later." };
+    }
+    if (
+      !(await checkRateLimit(`access-req-ip:${ip}`, {
+        maxHits: 12,
+        windowMs: 15 * 60 * 1000,
+      }))
+    ) {
+      return { error: "Too many requests. Try again later." };
+    }
+    if (
+      !(await checkRateLimit(`outbound-email-ip:${ip}`, {
+        maxHits: 8,
+        windowMs: 60 * 60 * 1000,
+      }))
+    ) {
+      return { error: "Too many emails from this network. Try again later." };
+    }
+    if (
+      !(await checkRateLimit(`outbound-email-global`, {
+        maxHits: 80,
+        windowMs: 60 * 60 * 1000,
+      }))
+    ) {
+      return { error: "Email sending is temporarily limited. Try again later." };
+    }
+    const age = await sql<{ created_at: string }>(
+      "select created_at::text as created_at from users where id = $1",
+      [user.id],
+    );
+    const createdMs = age[0] ? new Date(age[0].created_at).getTime() : 0;
+    if (Date.now() - createdMs < 24 * 60 * 60 * 1000) {
+      if (
+        !(await checkRateLimit(`access-req-new:${user.id}`, {
+          maxHits: 3,
+          windowMs: 24 * 60 * 60 * 1000,
+        }))
+      ) {
+        return {
+          error:
+            "New accounts can send only a few access requests on the first day.",
+        };
+      }
     }
 
     const alreadyPending = await sql(
@@ -408,7 +473,7 @@ export async function searchPeopleAction(
   const ip = await getClientIp();
   if (
     !(await checkRateLimit(`people-search:${user.id}`, {
-      maxHits: 60,
+      maxHits: 30,
       windowMs: 15 * 60 * 1000,
     }))
   ) {
@@ -416,7 +481,7 @@ export async function searchPeopleAction(
   }
   if (
     !(await checkRateLimit(`people-search-ip:${ip}`, {
-      maxHits: 120,
+      maxHits: 40,
       windowMs: 15 * 60 * 1000,
     }))
   ) {

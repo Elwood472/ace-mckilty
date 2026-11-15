@@ -78,7 +78,7 @@ export function SearchPeoplePanel({ csrf }: { csrf: string }) {
           const v = e.target.value;
           setQ(v);
           start(async () => {
-            if (v.trim().length < 2) {
+            if (v.trim().length < 3) {
               setHits([]);
               return;
             }

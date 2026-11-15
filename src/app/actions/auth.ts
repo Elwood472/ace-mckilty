@@ -48,6 +48,7 @@ export async function signUp(
   }
 
   // Cap account creation per IP and per email (bcrypt is expensive).
+  // No low global cap — that lets one attacker block every new signup.
   if (
     !(await checkRateLimit(`signup-ip:${ip}`, {
       maxHits: 5,
@@ -59,14 +60,6 @@ export async function signUp(
   if (
     !(await checkRateLimit(`signup:${email}`, {
       maxHits: 5,
-      windowMs: 60 * 60 * 1000,
-    }))
-  ) {
-    return { error: "Too many attempts. Try again later." };
-  }
-  if (
-    !(await checkRateLimit(`signup-global`, {
-      maxHits: 60,
       windowMs: 60 * 60 * 1000,
     }))
   ) {
@@ -115,17 +108,19 @@ export async function signIn(
     return { error: "Enter a valid email and password." };
   }
 
+  // Rate-limit by IP (and IP+email), never by email alone — otherwise an
+  // attacker who knows an address can lock the real owner out.
   if (
     !(await checkRateLimit(`signin-ip:${ip}`, {
-      maxHits: 20,
+      maxHits: 30,
       windowMs: 15 * 60 * 1000,
     }))
   ) {
     return { error: "Too many attempts. Try again later." };
   }
   if (
-    !(await checkRateLimit(`signin:${email}`, {
-      maxHits: 15,
+    !(await checkRateLimit(`signin-ip-email:${ip}:${email}`, {
+      maxHits: 12,
       windowMs: 15 * 60 * 1000,
     }))
   ) {

@@ -230,29 +230,142 @@ function priceForProduct(
   }
 
   if (titleHint) {
-    const esc = titleHint.replace(/[.*+?^${}()|[\]\\]/g, "\\$&").slice(0, 80);
-    const re = new RegExp(
-      `${esc}[\\s\\S]{0,900}?"price"\\s*:\\s*\\{\\s*"amount"\\s*:\\s*"?([0-9]+(?:\\.[0-9]+)?)"?\\s*,\\s*"currencyCode"\\s*:\\s*"([A-Z]{3})"`,
-      "i",
-    );
-    const m = body.match(re);
-    if (m) {
-      const money = moneyFromAmount(m[1], m[2]);
-      if (money) return money;
+    // Linear window search — avoid title+[\s\S]*?price regex over large bodies.
+    const needle = titleHint.slice(0, 80).toLowerCase();
+    const lower = body.toLowerCase();
+    let from = 0;
+    for (let n = 0; n < 12 && from < lower.length; n += 1) {
+      const i = lower.indexOf(needle, from);
+      if (i < 0) break;
+      const window = body.slice(i, i + 900);
+      const amount = window.match(
+        /"price"\s*:\s*\{\s*"amount"\s*:\s*"?([0-9]+(?:\.[0-9]+)?)"?\s*,\s*"currencyCode"\s*:\s*"([A-Z]{3})"/i,
+      );
+      if (amount) {
+        const money = moneyFromAmount(amount[1], amount[2]);
+        if (money) return money;
+      }
+      from = i + needle.length;
     }
   }
 
   return null;
 }
 
+const RELATED_CARD_CLASS =
+  /(?:small-product-card|product-card|related-products|also-like|recommendations)/i;
+
+/**
+ * Blank HTML comments with indexOf only (no lazy [\s\S]*? over unclosed markup).
+ */
+function stripHtmlComments(html: string): string {
+  let out = "";
+  let i = 0;
+  let ops = 0;
+  const MAX_OPS = 400;
+  while (i < html.length && ops < MAX_OPS) {
+    const start = html.indexOf("<!--", i);
+    if (start < 0) {
+      out += html.slice(i);
+      return out;
+    }
+    out += html.slice(i, start);
+    const end = html.indexOf("-->", start + 4);
+    if (end < 0) {
+      // Unclosed comment — drop the rest rather than scanning forever.
+      return out + " ";
+    }
+    out += " ";
+    i = end + 3;
+    ops += 1;
+  }
+  if (i < html.length) out += html.slice(i);
+  return out;
+}
+
+/**
+ * Strip matched open/close tag pairs with a bounded linear scan.
+ * Unclosed opens blank only a short window (never EOF backtracking).
+ */
+function stripTagPairs(
+  html: string,
+  tag: string,
+  opts: { maxOps?: number; unclosedWindow?: number } = {},
+): string {
+  const maxOps = opts.maxOps ?? 300;
+  const unclosedWindow = opts.unclosedWindow ?? 400;
+  const openPrefix = `<${tag}`;
+  const close = `</${tag}>`;
+  const lowerClose = close.toLowerCase();
+  let result = html;
+  let ops = 0;
+  let searchFrom = 0;
+  while (ops < maxOps) {
+    const lower = result.toLowerCase();
+    const start = lower.indexOf(openPrefix, searchFrom);
+    if (start < 0) break;
+    const afterLt = start + openPrefix.length;
+    const next = result[afterLt];
+    // Require word boundary after tag name: whitespace, /, or >
+    if (next && next !== ">" && next !== "/" && !/\s/.test(next)) {
+      searchFrom = afterLt;
+      continue;
+    }
+    const gt = result.indexOf(">", afterLt);
+    if (gt < 0) {
+      result = result.slice(0, start) + " ";
+      break;
+    }
+    const afterOpen = gt + 1;
+    const closeIdx = lower.indexOf(lowerClose, afterOpen);
+    if (closeIdx < 0) {
+      const end = Math.min(result.length, afterOpen + unclosedWindow);
+      result = result.slice(0, start) + " " + result.slice(end);
+      searchFrom = start + 1;
+      ops += 1;
+      continue;
+    }
+    result =
+      result.slice(0, start) +
+      " " +
+      result.slice(closeIdx + close.length);
+    searchFrom = start;
+    ops += 1;
+  }
+  return result;
+}
+
 /** Strip related-product / card chrome so dollar fallbacks don't pick wrong SKUs. */
 function stripRelatedChrome(html: string): string {
-  return html
-    .replace(
-      /<div[^>]*class="[^"]*(?:small-product-card|product-card|related-products|also-like|recommendations)[^"]*"[^>]*>[\s\S]*?<\/div>/gi,
-      " ",
-    )
-    .replace(/<!--[\s\S]*?-->/g, " ");
+  let result = stripHtmlComments(html);
+  let ops = 0;
+  const MAX_OPS = 200;
+  let searchFrom = 0;
+  while (ops < MAX_OPS) {
+    const lower = result.toLowerCase();
+    const start = lower.indexOf("<div", searchFrom);
+    if (start < 0) break;
+    const gt = result.indexOf(">", start + 4);
+    if (gt < 0) break;
+    const openTag = result.slice(start, gt + 1);
+    if (!RELATED_CARD_CLASS.test(openTag)) {
+      searchFrom = start + 4;
+      continue;
+    }
+    const afterOpen = gt + 1;
+    const closeIdx = lower.indexOf("</div>", afterOpen);
+    if (closeIdx < 0) {
+      const end = Math.min(result.length, afterOpen + 800);
+      result = result.slice(0, start) + " " + result.slice(end);
+      searchFrom = start + 1;
+      ops += 1;
+      continue;
+    }
+    result = result.slice(0, start) + " " + result.slice(closeIdx + 6);
+    searchFrom = start;
+    ops += 1;
+  }
+  return result;
 }
 
 /**
@@ -260,11 +373,11 @@ function stripRelatedChrome(html: string): string {
  * (e.g. Amazon nav "Under $10") before last-resort money scans.
  */
 function stripNavChrome(html: string): string {
-  return html
-    .replace(/<select\b[\s\S]*?<\/select>/gi, " ")
-    .replace(/<option\b[^>]*>[\s\S]*?<\/option>/gi, " ")
-    .replace(/<nav\b[\s\S]*?<\/nav>/gi, " ")
-    .replace(/<!--[\s\S]*?-->/g, " ");
+  let cleaned = stripHtmlComments(html);
+  cleaned = stripTagPairs(cleaned, "select", { maxOps: 80, unclosedWindow: 2000 });
+  cleaned = stripTagPairs(cleaned, "option", { maxOps: 400, unclosedWindow: 200 });
+  cleaned = stripTagPairs(cleaned, "nav", { maxOps: 40, unclosedWindow: 8000 });
+  return cleaned;
 }
 
 function isAmazonHost(host: string): boolean {
@@ -320,9 +433,9 @@ function scrapeAmazonBuyBoxPrice(html: string): ScrapedPrice | null {
   );
   if (priceToPayRegion) {
     const region = priceToPayRegion[0]
-      // list / strikethrough — do not let these win
+      // list / strikethrough — bounded replace (no unbounded lazy scans)
       .replace(
-        /<(?:span|div)[^>]*class=["'][^"']*(?:basisPrice|a-text-price|a-price a-text-price)[^"']*["'][^>]*>[\s\S]*?<\/(?:span|div)>/gi,
+        /<(?:span|div)[^>]*class=["'][^"']*(?:basisPrice|a-text-price|a-price a-text-price)[^"']*["'][^>]*>[\s\S]{0,400}?<\/(?:span|div)>/gi,
         " ",
       );
     const offscreen = region.match(
@@ -390,47 +503,66 @@ function scrapePrice(
     return moneyFromAmount(amountMeta, currencyMeta);
   }
 
-  // 3) JSON-LD offers (often the main product)
-  const jsonLdBlocks = [
-    ...html.matchAll(
-      /<script[^>]+type=["']application\/ld\+json["'][^>]*>([\s\S]*?)<\/script>/gi,
-    ),
-  ];
-  for (const m of jsonLdBlocks) {
-    try {
-      const data = JSON.parse(m[1]) as unknown;
-      const found = findOfferPrice(data);
-      if (found) return found;
-    } catch {
-      // ignore
+  // 3) JSON-LD offers (often the main product) — linear script extraction
+  {
+    const lower = html.toLowerCase();
+    let from = 0;
+    let blocks = 0;
+    while (blocks < 30 && from < html.length) {
+      const marker = lower.indexOf("application/ld+json", from);
+      if (marker < 0) break;
+      const scriptOpen = lower.lastIndexOf("<script", marker);
+      if (scriptOpen < 0 || marker - scriptOpen > 200) {
+        from = marker + 1;
+        continue;
+      }
+      const gt = html.indexOf(">", marker);
+      if (gt < 0) break;
+      const close = lower.indexOf("</script>", gt + 1);
+      if (close < 0) break;
+      const raw = html.slice(gt + 1, close).slice(0, 120_000);
+      blocks += 1;
+      from = close + 9;
+      try {
+        const data = JSON.parse(raw) as unknown;
+        const found = findOfferPrice(data);
+        if (found) return found;
+      } catch {
+        // ignore
+      }
     }
   }
 
   // 4) Dollar amounts only outside related-product cards + nav chrome
   const cleaned = stripNavChrome(stripRelatedChrome(html));
-  // Prefer amounts near the main H1 product title
+  // Prefer amounts near the main H1 product title (indexOf window, not regex)
   if (titleHint) {
-    const h1 = cleaned.match(
-      new RegExp(
-        `<h1[^>]*>\\s*${titleHint.replace(/[.*+?^${}()|[\\]\\\\]/g, "\\$&").slice(0, 60)}[\\s\\S]{0,2500}`,
-        "i",
-      ),
-    );
-    if (h1) {
-      const near = h1[0].match(
-        /(?:(US\$|CA\$|AU\$|NZ\$|HK\$|S\$|A\$|C\$)|([€£¥₹₽₩$]))\s*([0-9]{1,3}(?:,[0-9]{3})*(?:\.[0-9]{2})?|[0-9]+(?:\.[0-9]{2})?)/,
-      );
-      if (near) {
-        const cur = parseCurrencyHint(near[1] || near[2] || "$");
-        const amount = Number(near[3].replace(/,/g, ""));
-        if (!Number.isNaN(amount)) {
-          return {
-            amount,
-            currency: cur.code,
-            clearlyForeign: cur.clearlyForeign,
-          };
+    const hint = titleHint.slice(0, 60).toLowerCase();
+    const lowerClean = cleaned.toLowerCase();
+    let h1From = 0;
+    for (let n = 0; n < 8; n += 1) {
+      const h1Open = lowerClean.indexOf("<h1", h1From);
+      if (h1Open < 0) break;
+      const h1Gt = cleaned.indexOf(">", h1Open);
+      if (h1Gt < 0) break;
+      const region = cleaned.slice(h1Gt + 1, h1Gt + 1 + 2500);
+      if (region.toLowerCase().includes(hint)) {
+        const near = region.match(
+          /(?:(US\$|CA\$|AU\$|NZ\$|HK\$|S\$|A\$|C\$)|([€£¥₹₽₩$]))\s*([0-9]{1,3}(?:,[0-9]{3})*(?:\.[0-9]{2})?|[0-9]+(?:\.[0-9]{2})?)/,
+        );
+        if (near) {
+          const cur = parseCurrencyHint(near[1] || near[2] || "$");
+          const amount = Number(near[3].replace(/,/g, ""));
+          if (!Number.isNaN(amount)) {
+            return {
+              amount,
+              currency: cur.code,
+              clearlyForeign: cur.clearlyForeign,
+            };
+          }
         }
       }
+      h1From = h1Gt + 1;
     }
   }
 
