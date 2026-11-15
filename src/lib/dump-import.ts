@@ -106,13 +106,10 @@ function databaseUrl(): string {
 }
 
 function pgClient(connectionString: string): pg.Client {
-  let conn = connectionString;
-  const local =
-    /localhost|127\.0\.0\.1/i.test(conn) || conn.includes("sslmode=disable");
-  if (!local && !/[?&]sslmode=/i.test(conn)) {
-    conn += (conn.includes("?") ? "&" : "?") + "sslmode=verify-full";
-  }
-  return new pg.Client({ connectionString: conn });
+  return new pg.Client({
+    connectionString,
+    connectionTimeoutMillis: 8_000,
+  });
 }
 
 async function ensureImportLockTable(

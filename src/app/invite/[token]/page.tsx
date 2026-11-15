@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { SiteHeader } from "@/components/site-header";
+import { ensureCsrfToken } from "@/lib/csrf";
 import { sql } from "@/lib/db";
 import { getCurrentUser } from "@/lib/session";
 import { AcceptInviteButton } from "./accept-button";
@@ -46,6 +47,8 @@ export default async function InvitePage({ params }: Props) {
     redirect(`/login?next=/invite/${token}`);
   }
 
+  const csrf = await ensureCsrfToken();
+
   return (
     <>
       <SiteHeader user={user} />
@@ -64,7 +67,7 @@ export default async function InvitePage({ params }: Props) {
           Accept to get access.
         </p>
         <div style={{ marginTop: 16 }}>
-          <AcceptInviteButton token={token} />
+          <AcceptInviteButton token={token} csrf={csrf} />
         </div>
       </main>
     </>

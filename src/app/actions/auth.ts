@@ -7,7 +7,7 @@ import { hashPassword, verifyPassword } from "@/lib/password";
 import { checkRateLimit } from "@/lib/rate-limit";
 import { assertCsrf } from "@/lib/csrf";
 import { createSession, destroySession } from "@/lib/session";
-import { safeInternalPath } from "@/lib/urls";
+import { safeInternalPath } from "@/lib/url-safety";
 import { getClientIp } from "@/lib/client-ip";
 import { assertHuman } from "@/lib/captcha";
 
@@ -55,7 +55,7 @@ export async function signUp(
     // No low global cap — that lets one attacker block every new signup.
     if (
       !(await checkRateLimit(`signup-ip:${ip}`, {
-        maxHits: 5,
+        maxHits: 3,
         windowMs: 60 * 60 * 1000,
       }))
     ) {
@@ -63,7 +63,7 @@ export async function signUp(
     }
     if (
       !(await checkRateLimit(`signup:${email}`, {
-        maxHits: 5,
+        maxHits: 3,
         windowMs: 60 * 60 * 1000,
       }))
     ) {

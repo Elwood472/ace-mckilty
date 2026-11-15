@@ -49,7 +49,7 @@ export async function createListEmailInvite(
     // Include IP + site-wide caps so spinning new accounts still hits a ceiling.
     if (
       !(await checkRateLimit(`create-invite:${user.id}`, {
-        maxHits: 3,
+        maxHits: 2,
         windowMs: 15 * 60 * 1000,
       }))
     ) {
@@ -57,7 +57,7 @@ export async function createListEmailInvite(
     }
     if (
       !(await checkRateLimit(`create-invite-ip:${ip}`, {
-        maxHits: 6,
+        maxHits: 4,
         windowMs: 15 * 60 * 1000,
       }))
     ) {
@@ -65,7 +65,7 @@ export async function createListEmailInvite(
     }
     if (
       !(await checkRateLimit(`outbound-email-ip:${ip}`, {
-        maxHits: 8,
+        maxHits: 6,
         windowMs: 60 * 60 * 1000,
       }))
     ) {
@@ -73,7 +73,7 @@ export async function createListEmailInvite(
     }
     if (
       !(await checkRateLimit(`outbound-email-global`, {
-        maxHits: 80,
+        maxHits: 40,
         windowMs: 60 * 60 * 1000,
       }))
     ) {
@@ -81,7 +81,7 @@ export async function createListEmailInvite(
     }
     if (
       !(await checkRateLimit(`create-invite-day:${user.id}`, {
-        maxHits: 10,
+        maxHits: 5,
         windowMs: 24 * 60 * 60 * 1000,
       }))
     ) {
@@ -160,7 +160,13 @@ export async function createListEmailInvite(
 
 export async function acceptListInviteToken(
   token: string,
+  csrf?: string,
 ): Promise<ActionState> {
+  try {
+    await assertCsrf(csrf ?? null);
+  } catch {
+    return { error: "Invalid request. Refresh and try again." };
+  }
   try {
     const user = await requireUser();
     await ensurePersonalList(user.id, user.display_name);

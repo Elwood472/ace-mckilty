@@ -80,7 +80,9 @@ export async function renameList(
     const listId = s(formData, "listId");
     const title = s(formData, "title");
     await requireListOwner(listId, user.id);
-    if (!title) return { error: "Title required." };
+    if (!title || title.length > 120) {
+      return { error: "Enter a list title (max 120 characters)." };
+    }
     await sql(`update wish_lists set title = $1 where id = $2`, [title, listId]);
     revalidatePath(`/lists/${listId}`);
     return { ok: "Renamed." };

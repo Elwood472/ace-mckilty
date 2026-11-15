@@ -73,32 +73,22 @@ function escapeHtml(s: string): string {
     .replace(/>/g, "&gt;");
 }
 
-/** Strip control chars / newlines and cap length for outbound mail copy. */
-function emailLabel(raw: string, max: number): string {
-  return String(raw ?? "")
-    .replace(/[\u0000-\u001f\u007f]/g, "")
-    .replace(/\s+/g, " ")
-    .trim()
-    .slice(0, max);
-}
-
 export function inviteEmailBody(opts: {
   listTitle: string;
   inviterName: string;
   inviteUrl: string;
 }): { subject: string; text: string; html: string } {
-  // Fixed subject — do not put user-controlled titles/names in the subject line.
+  // Fixed copy only — never put user-controlled names/titles in outbound mail.
+  void opts.listTitle;
+  void opts.inviterName;
   const subject = "Wish list invite on Ace McKilty Gift Registry";
-  const inviter = emailLabel(opts.inviterName, 40) || "Someone";
-  const listTitle = emailLabel(opts.listTitle, 60) || "a wish list";
   const text =
-    `${inviter} invited you to view “${listTitle}” on Ace McKilty Gift Registry.\n\n` +
+    `You've been invited to view a wish list on Ace McKilty Gift Registry.\n\n` +
     `Open this invite link to get access:\n${opts.inviteUrl}\n\n` +
     `If you don't have an account yet, create one with this same email, then open the link again.`;
   const html = `
     <div style="font-family:Arial,Helvetica,sans-serif;font-size:14px;color:#111">
-      <p><b>${escapeHtml(inviter)}</b> invited you to view
-      “${escapeHtml(listTitle)}” on Ace McKilty Gift Registry.</p>
+      <p>You've been invited to view a wish list on Ace McKilty Gift Registry.</p>
       <p><a href="${escapeHtml(opts.inviteUrl)}"
         style="display:inline-block;background:#000080;color:#fff;padding:10px 16px;text-decoration:none;font-weight:700">
         Accept invite
@@ -115,19 +105,17 @@ export function accessRequestEmailBody(opts: {
   requesterEmail: string;
   reviewUrl: string;
 }): { subject: string; text: string; html: string } {
-  // Fixed subject — requester/list names stay in the body only, sanitized.
+  // Fixed copy only — no attacker-controlled names/titles in outbound mail.
+  void opts.listTitle;
+  void opts.requesterName;
+  void opts.requesterEmail;
   const subject = "Access request on Ace McKilty Gift Registry";
-  const requester = emailLabel(opts.requesterName, 40) || "Someone";
-  const listTitle = emailLabel(opts.listTitle, 60) || "a wish list";
-  const email = emailLabel(opts.requesterEmail, 120);
   const text =
-    `${requester} (${email}) requested access to “${listTitle}” on Ace McKilty Gift Registry.\n\n` +
+    `Someone requested access to a wish list on Ace McKilty Gift Registry.\n\n` +
     `Review and approve or deny the request:\n${opts.reviewUrl}\n`;
   const html = `
     <div style="font-family:Arial,Helvetica,sans-serif;font-size:14px;color:#111">
-      <p><b>${escapeHtml(requester)}</b>
-      (${escapeHtml(email)}) requested access to
-      “${escapeHtml(listTitle)}” on Ace McKilty Gift Registry.</p>
+      <p>Someone requested access to a wish list on Ace McKilty Gift Registry.</p>
       <p><a href="${escapeHtml(opts.reviewUrl)}"
         style="display:inline-block;background:#000080;color:#fff;padding:10px 16px;text-decoration:none;font-weight:700">
         Review request

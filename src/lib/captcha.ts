@@ -20,8 +20,8 @@ import {
 
 const MATH_TTL_MS = 10 * 60 * 1000;
 /** Hex leading zeros required of sha256(`${powSalt}:${powNonce}`). */
-const POW_DIFFICULTY = 4;
-const MIN_DWELL_MS = 2500;
+const POW_DIFFICULTY = 5;
+const MIN_DWELL_MS = 3000;
 
 /** Process-lifetime secret when no env secret is bound (never a shipped literal). */
 let runtimeSecret: Buffer | null = null;

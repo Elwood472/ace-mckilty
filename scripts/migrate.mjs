@@ -9,12 +9,7 @@ if (url === "" || files.length === 0) {
   console.log("migrate: nothing to do");
   process.exit(0);
 }
-let conn = process.env.DATABASE_URL_UNPOOLED?.trim() || url;
-const local =
-  /localhost|127\.0\.0\.1/i.test(conn) || conn.includes("sslmode=disable");
-if (!local && !/[?&]sslmode=/i.test(conn)) {
-  conn += (conn.includes("?") ? "&" : "?") + "sslmode=verify-full";
-}
+const conn = process.env.DATABASE_URL_UNPOOLED?.trim() || url;
 const client = new pg.Client({ connectionString: conn });
 await client.connect();
 try {
