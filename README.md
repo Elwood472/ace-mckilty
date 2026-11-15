@@ -26,6 +26,7 @@ With `DATABASE_URL` set (hosted Postgres), persistence is the remote database in
 ## Stack notes
 
 - `cursor-app.json` declares `{ "database": "postgres" }` for Cursor hosting
-- `npm run build` runs `next build` then `scripts/migrate.mjs`
+- `npm run build` runs `next build` then `scripts/migrate.mjs` (no seed dump in the repo)
+- One-time empty-DB import: `/import-data` gated by app secret `IMPORT_SECRET` (upload dump JSON; refuse if users exist)
 - App-owned email/password auth (httpOnly session cookies, CSRF tokens on mutations)
 - Wish-list owners never receive purchase status in API/UI responses
