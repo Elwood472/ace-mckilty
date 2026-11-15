@@ -113,9 +113,7 @@ export async function signIn(
   let ok = false;
   try {
     const ip = await getClientIp();
-    const human = await assertHuman(formData, ip);
-    if (!human.ok) return { error: human.error };
-
+    // No CAPTCHA on login — rate limits blunt stuffing; CAPTCHA stays on signup.
     const email = formString(formData, "email").toLowerCase();
     const password = formString(formData, "password");
     const parsed = credentials.safeParse({ email, password });

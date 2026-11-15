@@ -4,7 +4,6 @@ import { SiteHeader } from "@/components/site-header";
 import { ensureCsrfToken } from "@/lib/csrf";
 import { getCurrentUser } from "@/lib/session";
 import { safeInternalPath } from "@/lib/url-safety";
-import { getTurnstileSiteKey, issueMathChallenge } from "@/lib/captcha";
 
 export default async function LoginPage({
   searchParams,
@@ -16,8 +15,6 @@ export default async function LoginPage({
   const next = sp.next ? safeInternalPath(sp.next) : "/dashboard";
   if (user) redirect(next);
   const csrf = await ensureCsrfToken();
-  const turnstileSiteKey = getTurnstileSiteKey();
-  const mathChallenge = turnstileSiteKey ? null : issueMathChallenge();
 
   return (
     <>
@@ -33,8 +30,8 @@ export default async function LoginPage({
           mode="login"
           csrf={csrf}
           next={next !== "/dashboard" ? next : undefined}
-          turnstileSiteKey={turnstileSiteKey}
-          mathChallenge={mathChallenge}
+          turnstileSiteKey={null}
+          mathChallenge={null}
         />
       </main>
     </>
