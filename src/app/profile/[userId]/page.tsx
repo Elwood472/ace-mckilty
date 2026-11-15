@@ -3,7 +3,7 @@ import { notFound, redirect } from "next/navigation";
 import { SiteHeader } from "@/components/site-header";
 import { ensureCsrfToken } from "@/lib/csrf";
 import { sql } from "@/lib/db";
-import { getCurrentUser } from "@/lib/session";
+import { requireAppUser } from "@/lib/session";
 import { canViewList } from "@/lib/authz";
 import { getPersonalListId } from "@/lib/lists";
 import { formatMdY } from "@/lib/dates";
@@ -15,8 +15,7 @@ type Props = { params: Promise<{ userId: string }> };
 
 export default async function ProfilePage({ params }: Props) {
   const { userId } = await params;
-  const me = await getCurrentUser();
-  if (!me) redirect("/login");
+  const me = await requireAppUser();
 
   const theirListId = await getPersonalListId(userId);
   const csrf = await ensureCsrfToken();

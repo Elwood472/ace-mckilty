@@ -1,10 +1,9 @@
 import Link from "next/link";
-import { redirect } from "next/navigation";
 import { SiteHeader } from "@/components/site-header";
 import { HomeToolbar } from "@/components/home-toolbar";
 import { ensureCsrfToken } from "@/lib/csrf";
 import { sql } from "@/lib/db";
-import { getCurrentUser } from "@/lib/session";
+import { requireAppUser } from "@/lib/session";
 import { activityClass, formatMd, formatMdY } from "@/lib/dates";
 import { listPeopleToBuyFor } from "@/lib/people";
 import { ensurePersonalList } from "@/lib/lists";
@@ -16,8 +15,7 @@ import {
 } from "./forms";
 
 export default async function DashboardPage() {
-  const user = await getCurrentUser();
-  if (!user) redirect("/login");
+  const user = await requireAppUser();
   const csrf = await ensureCsrfToken();
   const myListId = await ensurePersonalList(user.id, user.display_name);
 

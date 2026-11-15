@@ -3,13 +3,12 @@ import { redirect } from "next/navigation";
 import { SiteHeader } from "@/components/site-header";
 import { ensureCsrfToken } from "@/lib/csrf";
 import { sql } from "@/lib/db";
-import { getCurrentUser } from "@/lib/session";
+import { requireAppUser } from "@/lib/session";
 import { QUESTIONNAIRE_COLUMNS } from "@/lib/profile-fields";
 import { ProfileEditForm, type ProfileInitial } from "./form";
 
 export default async function EditProfilePage() {
-  const user = await getCurrentUser();
-  if (!user) redirect("/login");
+  const user = await requireAppUser();
   const csrf = await ensureCsrfToken();
 
   const qCols = QUESTIONNAIRE_COLUMNS.join(", ");

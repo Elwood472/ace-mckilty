@@ -143,8 +143,9 @@ export async function enableEmailTwoFactor(
     return { error: "Invalid request. Refresh and try again." };
   }
 
+  let goHome = false;
   try {
-    const user = await requireUser();
+    const user = await requireUser({ skipTwoFactorCheck: true });
     if (!emailTwoFactorAvailable()) {
       return {
         error:
@@ -155,14 +156,26 @@ export async function enableEmailTwoFactor(
     if (!(await assertCurrentPassword(user.id, password))) {
       return { error: "Password is incorrect." };
     }
+    const before = await sql<{
+      totp_enabled: boolean;
+      email_2fa_enabled: boolean;
+    }>(
+      "select totp_enabled, email_2fa_enabled from users where id = $1",
+      [user.id],
+    );
+    const firstMethod =
+      !before[0]?.totp_enabled && !before[0]?.email_2fa_enabled;
     await sql(
       `update users set email_2fa_enabled = true where id = $1`,
       [user.id],
     );
-    return { ok: "Email sign-in codes are on." };
+    if (firstMethod) goHome = true;
+    else return { ok: "Email sign-in codes are on." };
   } catch {
     return { error: "Could not update two-factor settings." };
   }
+  if (goHome) redirect("/dashboard");
+  return { error: "Could not update two-factor settings." };
 }
 
 export async function disableEmailTwoFactor(
@@ -176,7 +189,7 @@ export async function disableEmailTwoFactor(
   }
 
   try {
-    const user = await requireUser();
+    const user = await requireUser({ skipTwoFactorCheck: true });
     const password = formString(formData, "password");
     if (!(await assertCurrentPassword(user.id, password))) {
       return { error: "Password is incorrect." };
@@ -185,11 +198,16 @@ export async function disableEmailTwoFactor(
       "select totp_enabled from users where id = $1",
       [user.id],
     );
+    if (!flags[0]?.totp_enabled) {
+      return {
+        error:
+          "Keep at least one two-factor method on. Turn on an authenticator first, or leave email codes enabled.",
+      };
+    }
     await sql(
       `update users set email_2fa_enabled = false where id = $1`,
       [user.id],
     );
-    void flags;
     return { ok: "Email sign-in codes are off." };
   } catch {
     return { error: "Could not update two-factor settings." };
@@ -207,7 +225,7 @@ export async function beginTotpSetup(
   }
 
   try {
-    const user = await requireUser();
+    const user = await requireUser({ skipTwoFactorCheck: true });
     const password = formString(formData, "password");
     if (!(await assertCurrentPassword(user.id, password))) {
       return { error: "Password is incorrect." };
@@ -242,8 +260,9 @@ export async function confirmTotpSetup(
     return { error: "Invalid request. Refresh and try again." };
   }
 
+  let goHome = false;
   try {
-    const user = await requireUser();
+    const user = await requireUser({ skipTwoFactorCheck: true });
     const code = formString(formData, "code");
     const rows = await sql<{ secret: string }>(
       "select secret from totp_setup where user_id = $1",
@@ -256,6 +275,15 @@ export async function confirmTotpSetup(
     if (!verifyTotpCode(secret, code)) {
       return { error: "That authenticator code is incorrect. Try again." };
     }
+    const before = await sql<{
+      totp_enabled: boolean;
+      email_2fa_enabled: boolean;
+    }>(
+      "select totp_enabled, email_2fa_enabled from users where id = $1",
+      [user.id],
+    );
+    const firstMethod =
+      !before[0]?.totp_enabled && !before[0]?.email_2fa_enabled;
     await sql(
       `update users
        set totp_secret = $1, totp_enabled = true
@@ -263,10 +291,13 @@ export async function confirmTotpSetup(
       [secret, user.id],
     );
     await sql("delete from totp_setup where user_id = $1", [user.id]);
-    return { ok: "Authenticator app is on." };
+    if (firstMethod) goHome = true;
+    else return { ok: "Authenticator app is on." };
   } catch {
     return { error: "Could not confirm authenticator." };
   }
+  if (goHome) redirect("/dashboard");
+  return { error: "Could not confirm authenticator." };
 }
 
 export async function disableTotp(
@@ -280,10 +311,20 @@ export async function disableTotp(
   }
 
   try {
-    const user = await requireUser();
+    const user = await requireUser({ skipTwoFactorCheck: true });
     const password = formString(formData, "password");
     if (!(await assertCurrentPassword(user.id, password))) {
       return { error: "Password is incorrect." };
+    }
+    const flags = await sql<{ email_2fa_enabled: boolean }>(
+      "select email_2fa_enabled from users where id = $1",
+      [user.id],
+    );
+    if (!flags[0]?.email_2fa_enabled) {
+      return {
+        error:
+          "Keep at least one two-factor method on. Turn on email codes first, or leave the authenticator enabled.",
+      };
     }
     await sql(
       `update users

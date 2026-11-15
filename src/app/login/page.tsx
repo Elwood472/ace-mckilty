@@ -5,7 +5,7 @@ import { getTurnstileSiteKey, issueMathChallenge } from "@/lib/captcha";
 import { getClientIp } from "@/lib/client-ip";
 import { ensureCsrfToken } from "@/lib/csrf";
 import { loginCaptchaRequired } from "@/lib/login-captcha";
-import { getCurrentUser } from "@/lib/session";
+import { ensureTwoFactorEnrolled, getCurrentUser } from "@/lib/session";
 import { safeInternalPath } from "@/lib/url-safety";
 
 export default async function LoginPage({
@@ -16,7 +16,10 @@ export default async function LoginPage({
   const user = await getCurrentUser();
   const sp = await searchParams;
   const next = sp.next ? safeInternalPath(sp.next) : "/dashboard";
-  if (user) redirect(next);
+  if (user) {
+    await ensureTwoFactorEnrolled(user.id);
+    redirect(next);
+  }
   const csrf = await ensureCsrfToken();
   const ip = await getClientIp();
   const needsCaptcha = await loginCaptchaRequired(ip);

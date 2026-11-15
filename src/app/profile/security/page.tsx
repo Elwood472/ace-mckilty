@@ -7,31 +7,43 @@ import {
   emailSendingConfigured,
   emailTwoFactorAvailable,
   getUserTwoFactor,
+  userNeedsTwoFactor,
 } from "@/lib/two-factor";
 import { SecuritySettingsForm } from "./form";
 
-export default async function SecuritySettingsPage() {
+export default async function SecuritySettingsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ setup?: string }>;
+}) {
   const user = await getCurrentUser();
   if (!user) redirect("/login?next=/profile/security");
   const csrf = await ensureCsrfToken();
   const flags = await getUserTwoFactor(user.id);
   if (!flags) redirect("/dashboard");
 
+  const sp = await searchParams;
+  const enrolled = userNeedsTwoFactor(flags);
+  const setupRequired = sp.setup === "1" || !enrolled;
+
   return (
     <>
       <SiteHeader user={user} />
       <main className="site-main">
-        <p>
-          <Link href="/dashboard">← Home</Link>
-          {" · "}
-          <Link href="/profile/edit">Edit profile</Link>
-        </p>
+        {enrolled ? (
+          <p>
+            <Link href="/dashboard">← Home</Link>
+            {" · "}
+            <Link href="/profile/edit">Edit profile</Link>
+          </p>
+        ) : null}
         <h1 className="brand-title" style={{ fontSize: 22, marginTop: 8 }}>
-          Sign-in security
+          {setupRequired ? "Set up two-factor sign-in" : "Sign-in security"}
         </h1>
         <p style={{ color: "#555", maxWidth: 560 }}>
-          Optionally require a second step after your password. You can use an
-          authenticator app, email codes, or both.
+          {setupRequired
+            ? "Turn on an authenticator app and/or email codes before you continue. At least one method is required."
+            : "Manage your second step after password. Keep at least one method on."}
         </p>
         <SecuritySettingsForm
           csrf={csrf}
@@ -39,6 +51,7 @@ export default async function SecuritySettingsPage() {
           emailEnabled={flags.email_2fa_enabled}
           emailAvailable={emailTwoFactorAvailable()}
           emailLive={emailSendingConfigured()}
+          setupRequired={setupRequired && !enrolled}
         />
       </main>
     </>

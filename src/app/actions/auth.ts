@@ -100,7 +100,7 @@ export async function signUp(
     return { error: "Could not create account. Try again in a moment." };
   }
 
-  if (userId) redirect("/dashboard");
+  if (userId) redirect("/profile/security?setup=1");
   return { error: "Could not create account. Try again in a moment." };
 }
 
@@ -117,6 +117,7 @@ export async function signIn(
   let nextPath = "/dashboard";
   let ok = false;
   let needsTwoFactor = false;
+  let needsTwoFactorSetup = false;
   try {
     const ip = await getClientIp();
     const failKey = signInFailKey(ip);
@@ -184,6 +185,7 @@ export async function signIn(
       });
       needsTwoFactor = true;
     } else {
+      // Password ok but no 2FA enrolled yet — session then mandatory setup.
       await createSession(user.id);
       const named = await sql<{ display_name: string }>(
         "select display_name from users where id = $1",
@@ -191,7 +193,7 @@ export async function signIn(
       );
       const { ensurePersonalList } = await import("@/lib/lists");
       await ensurePersonalList(user.id, named[0]?.display_name ?? "My");
-      ok = true;
+      needsTwoFactorSetup = true;
     }
   } catch (e) {
     console.error("[auth] signIn failed", e);
@@ -199,6 +201,7 @@ export async function signIn(
   }
 
   if (needsTwoFactor) redirect("/login/verify");
+  if (needsTwoFactorSetup) redirect("/profile/security?setup=1");
   if (ok) redirect(nextPath);
   return { error: "Could not sign in. Try again in a moment." };
 }

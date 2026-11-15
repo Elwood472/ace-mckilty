@@ -3,7 +3,7 @@ import { notFound, redirect } from "next/navigation";
 import { SiteHeader } from "@/components/site-header";
 import { ensureCsrfToken } from "@/lib/csrf";
 import { sql } from "@/lib/db";
-import { getCurrentUser } from "@/lib/session";
+import { requireAppUser } from "@/lib/session";
 import { canViewList, isListOwner } from "@/lib/authz";
 import { categoryToc, listVisibleItems, listVisibleSources } from "@/lib/items";
 import { formatMd } from "@/lib/dates";
@@ -28,8 +28,7 @@ function one(v: string | string[] | undefined): string {
 export default async function ListPage({ params, searchParams }: Props) {
   const { listId } = await params;
   const sp = await searchParams;
-  const user = await getCurrentUser();
-  if (!user) redirect("/login");
+  const user = await requireAppUser();
   if (!(await canViewList(listId, user.id))) notFound();
 
   const lists = await sql<{

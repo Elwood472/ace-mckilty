@@ -3,14 +3,13 @@ import { redirect } from "next/navigation";
 import { SiteHeader } from "@/components/site-header";
 import { ensureCsrfToken } from "@/lib/csrf";
 import { sql } from "@/lib/db";
-import { getCurrentUser } from "@/lib/session";
+import { requireAppUser } from "@/lib/session";
 import { formatMdY } from "@/lib/dates";
 import { safeExternalHref } from "@/lib/url-safety";
 import { RemovedActions } from "./removed-actions";
 
 export default async function RemovedPage() {
-  const user = await getCurrentUser();
-  if (!user) redirect("/login");
+  const user = await requireAppUser();
   const csrf = await ensureCsrfToken();
 
   const rows = await sql<{

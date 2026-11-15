@@ -5,7 +5,7 @@ import {
   getImportGate,
   isImportSecretConfigured,
 } from "@/lib/dump-import";
-import { getCurrentUser } from "@/lib/session";
+import { requireAppUser } from "@/lib/session";
 import { ImportDataForm } from "./form";
 
 export const dynamic = "force-dynamic";
@@ -26,10 +26,7 @@ export default async function ImportDataPage() {
     notFound();
   }
 
-  const user = await getCurrentUser();
-  if (!user) {
-    redirect("/login?next=/import-data");
-  }
+  const user = await requireAppUser();
 
   // Re-check eligibility with session user (bootstrap sole-user case).
   try {

@@ -1,4 +1,5 @@
 import { cookies } from "next/headers";
+import { redirect } from "next/navigation";
 import { nanoid } from "nanoid";
 import { sql } from "./db";
 import type { User } from "./types";
@@ -73,8 +74,35 @@ export async function getCurrentUser(): Promise<User | null> {
   return rows[0] ?? null;
 }
 
-export async function requireUser(): Promise<User> {
+/**
+ * Signed-in user for server actions.
+ * By default blocks until at least one 2FA method is enrolled.
+ * Pass skipTwoFactorCheck for the 2FA setup actions themselves.
+ */
+export async function requireUser(opts?: {
+  skipTwoFactorCheck?: boolean;
+}): Promise<User> {
   const user = await getCurrentUser();
   if (!user) throw new Error("UNAUTHORIZED");
+  if (!opts?.skipTwoFactorCheck) {
+    await ensureTwoFactorEnrolled(user.id);
+  }
   return user;
+}
+
+/** Logged-in app pages — redirects to login or mandatory 2FA setup. */
+export async function requireAppUser(): Promise<User> {
+  const user = await getCurrentUser();
+  if (!user) redirect("/login");
+  await ensureTwoFactorEnrolled(user.id);
+  return user;
+}
+
+/** If this user has no 2FA yet, send them to enroll before using the app. */
+export async function ensureTwoFactorEnrolled(userId: string): Promise<void> {
+  const { getUserTwoFactor, userNeedsTwoFactor } = await import("./two-factor");
+  const flags = await getUserTwoFactor(userId);
+  if (!flags || !userNeedsTwoFactor(flags)) {
+    redirect("/profile/security?setup=1");
+  }
 }

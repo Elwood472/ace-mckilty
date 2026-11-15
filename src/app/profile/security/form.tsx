@@ -29,12 +29,14 @@ export function SecuritySettingsForm({
   emailEnabled,
   emailAvailable,
   emailLive,
+  setupRequired = false,
 }: {
   csrf: string;
   totpEnabled: boolean;
   emailEnabled: boolean;
   emailAvailable: boolean;
   emailLive: boolean;
+  setupRequired?: boolean;
 }) {
   const [emailOn, enableEmail, enablingEmail] = useActionState(
     enableEmailTwoFactor,
@@ -74,29 +76,33 @@ export function SecuritySettingsForm({
         <Flash state={emailOn} />
         <Flash state={emailOff} />
         {emailEnabled ? (
-          <form action={disableEmail}>
-            <CsrfField token={csrf} />
-            <label className="label" htmlFor="email-off-password">
-              Current password
-            </label>
-            <input
-              id="email-off-password"
-              name="password"
-              type="password"
-              className="field"
-              required
-              minLength={8}
-              autoComplete="current-password"
-            />
-            <button
-              type="submit"
-              className="btn"
-              disabled={disablingEmail}
-              style={{ marginTop: 8 }}
-            >
-              {disablingEmail ? "Saving…" : "Turn off email codes"}
-            </button>
-          </form>
+          setupRequired ? (
+            <p style={{ fontWeight: 700, color: "#060" }}>Email codes are on.</p>
+          ) : (
+            <form action={disableEmail}>
+              <CsrfField token={csrf} />
+              <label className="label" htmlFor="email-off-password">
+                Current password
+              </label>
+              <input
+                id="email-off-password"
+                name="password"
+                type="password"
+                className="field"
+                required
+                minLength={8}
+                autoComplete="current-password"
+              />
+              <button
+                type="submit"
+                className="btn"
+                disabled={disablingEmail}
+                style={{ marginTop: 8 }}
+              >
+                {disablingEmail ? "Saving…" : "Turn off email codes"}
+              </button>
+            </form>
+          )
         ) : (
           <form action={enableEmail}>
             <CsrfField token={csrf} />
@@ -136,30 +142,36 @@ export function SecuritySettingsForm({
         <Flash state={totpOff} />
 
         {totpEnabled ? (
-          <form action={turnOffTotp}>
-            <CsrfField token={csrf} />
+          setupRequired ? (
             <p style={{ fontWeight: 700, color: "#060" }}>Authenticator is on.</p>
-            <label className="label" htmlFor="totp-off-password">
-              Current password
-            </label>
-            <input
-              id="totp-off-password"
-              name="password"
-              type="password"
-              className="field"
-              required
-              minLength={8}
-              autoComplete="current-password"
-            />
-            <button
-              type="submit"
-              className="btn"
-              disabled={disablingTotp}
-              style={{ marginTop: 8 }}
-            >
-              {disablingTotp ? "Saving…" : "Turn off authenticator"}
-            </button>
-          </form>
+          ) : (
+            <form action={turnOffTotp}>
+              <CsrfField token={csrf} />
+              <p style={{ fontWeight: 700, color: "#060" }}>
+                Authenticator is on.
+              </p>
+              <label className="label" htmlFor="totp-off-password">
+                Current password
+              </label>
+              <input
+                id="totp-off-password"
+                name="password"
+                type="password"
+                className="field"
+                required
+                minLength={8}
+                autoComplete="current-password"
+              />
+              <button
+                type="submit"
+                className="btn"
+                disabled={disablingTotp}
+                style={{ marginTop: 8 }}
+              >
+                {disablingTotp ? "Saving…" : "Turn off authenticator"}
+              </button>
+            </form>
+          )
         ) : (
           <>
             {!setupQr ? (
