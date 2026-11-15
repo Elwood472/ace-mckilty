@@ -252,16 +252,127 @@ function stripRelatedChrome(html: string): string {
     .replace(/<!--[\s\S]*?-->/g, " ");
 }
 
+/**
+ * Strip site chrome that often contains decoy dollar amounts
+ * (e.g. Amazon nav "Under $10") before last-resort money scans.
+ */
+function stripNavChrome(html: string): string {
+  return html
+    .replace(/<select\b[\s\S]*?<\/select>/gi, " ")
+    .replace(/<option\b[^>]*>[\s\S]*?<\/option>/gi, " ")
+    .replace(/<nav\b[\s\S]*?<\/nav>/gi, " ")
+    .replace(/<!--[\s\S]*?-->/g, " ");
+}
+
+function isAmazonHost(host: string): boolean {
+  return /(^|\.)amazon\./i.test(host);
+}
+
+function looksLikeAmazonHtml(html: string): boolean {
+  return (
+    /id=["'](?:twister-plus-price-data-price|desktop_buybox|apex_desktop|corePriceDisplay_desktop_feature_div)["']/i.test(
+      html,
+    ) || /class=["'][^"']*priceToPay[^"']*["']/i.test(html)
+  );
+}
+
+function moneyFromWholeFraction(
+  whole: string,
+  fraction: string,
+): ScrapedPrice | null {
+  return moneyFromAmount(`${whole}.${fraction}`, "USD");
+}
+
+/**
+ * Amazon (and similar) buy-box / one-time purchase price for THIS ASIN page.
+ * Prefer the main offer; ignore nav decoys, list/basis prices, related cards,
+ * "New from", and frequently-bought-together totals.
+ */
+function scrapeAmazonBuyBoxPrice(html: string): ScrapedPrice | null {
+  // 1) Twister buy-box amount (current ASIN offer)
+  const twister =
+    html.match(
+      /id=["']twister-plus-price-data-price["'][^>]*\bvalue=["']([0-9]+(?:\.[0-9]+)?)["']/i,
+    ) ||
+    html.match(
+      /\bvalue=["']([0-9]+(?:\.[0-9]+)?)["'][^>]*id=["']twister-plus-price-data-price["']/i,
+    );
+  if (twister) {
+    const money = moneyFromAmount(twister[1], "USD");
+    if (money) return money;
+  }
+
+  // 2) Explicit one-time purchase line (subscribe-and-save pages)
+  const oneTime = html.match(
+    /One-time purchase:\s*\$([0-9]{1,3}(?:,[0-9]{3})*(?:\.[0-9]{2})?)/i,
+  );
+  if (oneTime) {
+    const money = moneyFromAmount(oneTime[1].replace(/,/g, ""), "USD");
+    if (money) return money;
+  }
+
+  // 3) Apex / priceToPay buy-box (visible main price)
+  const priceToPayRegion = html.match(
+    /(?:id=["']apex_desktop["']|class=["'][^"']*priceToPay[^"']*["']|id=["']corePriceDisplay_desktop_feature_div["'])[\s\S]{0,2500}/i,
+  );
+  if (priceToPayRegion) {
+    const region = priceToPayRegion[0]
+      // list / strikethrough — do not let these win
+      .replace(
+        /<(?:span|div)[^>]*class=["'][^"']*(?:basisPrice|a-text-price|a-price a-text-price)[^"']*["'][^>]*>[\s\S]*?<\/(?:span|div)>/gi,
+        " ",
+      );
+    const offscreen = region.match(
+      /class=["']a-offscreen["']>\s*\$([0-9]{1,3}(?:,[0-9]{3})*(?:\.[0-9]{2})?)\s*</i,
+    );
+    if (offscreen) {
+      const money = moneyFromAmount(offscreen[1].replace(/,/g, ""), "USD");
+      if (money) return money;
+    }
+    const parts = region.match(
+      /a-price-whole["']>([0-9]{1,3}(?:,[0-9]{3})*)[\s\S]{0,120}?a-price-fraction["']>([0-9]{2})/i,
+    );
+    if (parts) {
+      const money = moneyFromWholeFraction(parts[1].replace(/,/g, ""), parts[2]);
+      if (money) return money;
+    }
+  }
+
+  // 4) desktop_buybox widget — first core a-price, not "New from" elsewhere
+  const buyboxIdx = html.search(
+    /id=["']desktop_buybox["']|data-feature-name=["']desktop_buybox["']/i,
+  );
+  if (buyboxIdx >= 0) {
+    const region = html.slice(buyboxIdx, buyboxIdx + 20_000);
+    const offscreen = region.match(
+      /class=["']a-offscreen["']>\s*\$([0-9]{1,3}(?:,[0-9]{3})*(?:\.[0-9]{2})?)\s*</i,
+    );
+    if (offscreen) {
+      const money = moneyFromAmount(offscreen[1].replace(/,/g, ""), "USD");
+      if (money) return money;
+    }
+  }
+
+  return null;
+}
+
 function scrapePrice(
   html: string,
-  opts: { slug?: string; titleHint?: string } = {},
+  opts: { slug?: string; titleHint?: string; host?: string } = {},
 ): ScrapedPrice | null {
   const slug = opts.slug ?? "";
   const titleHint = opts.titleHint?.replace(/\s*[|\-–].*$/, "").trim();
+  const host = opts.host ?? "";
 
-  // 1) Product-scoped structured price (best)
+  // 1) Product-scoped structured price (best for Shopify / RSC storefronts)
   const scoped = priceForProduct(html, slug, titleHint);
   if (scoped) return scoped;
+
+  // 1b) Amazon buy-box / one-time purchase for this ASIN (before any $ scan)
+  if (isAmazonHost(host) || looksLikeAmazonHtml(html)) {
+    const buyBox = scrapeAmazonBuyBoxPrice(html);
+    if (buyBox) return buyBox;
+  }
 
   // 2) Classic meta tags for THIS page
   const currencyMeta =
@@ -292,8 +403,8 @@ function scrapePrice(
     }
   }
 
-  // 4) Dollar amounts only outside related-product cards; skip compare-at styling when possible
-  const cleaned = stripRelatedChrome(html);
+  // 4) Dollar amounts only outside related-product cards + nav chrome
+  const cleaned = stripNavChrome(stripRelatedChrome(html));
   // Prefer amounts near the main H1 product title
   if (titleHint) {
     const h1 = cleaned.match(
@@ -320,7 +431,7 @@ function scrapePrice(
     }
   }
 
-  // Last resort: first money symbol in cleaned HTML (related cards stripped)
+  // Last resort: first money symbol in cleaned HTML (related cards + nav stripped)
   const money = cleaned.match(
     /(?:(US\$|CA\$|AU\$|NZ\$|HK\$|S\$|A\$|C\$)|([€£¥₹₽₩$]))\s*([0-9]{1,3}(?:,[0-9]{3})*(?:\.[0-9]{2})?|[0-9]+(?:\.[0-9]{2})?)/,
   );
@@ -427,7 +538,8 @@ export async function autofillFromGiftUrl(url: string): Promise<AutofillResult> 
       out.warning = `Could not fetch page (HTTP ${res.status}). Fill fields manually.`;
       return out;
     }
-    const html = (await res.text()).slice(0, 400_000);
+    // Keep enough HTML for late buy-box widgets (Amazon apex/priceToPay ~400k+)
+    const html = (await res.text()).slice(0, 700_000);
     const ogTitle =
       metaContent(html, "og:title") ||
       metaContent(html, "twitter:title") ||
@@ -448,16 +560,26 @@ export async function autofillFromGiftUrl(url: string): Promise<AutofillResult> 
 
     const slug = productSlugFromUrl(trimmed);
     const titleHint = out.title;
+    let host = "";
+    try {
+      host = new URL(trimmed).hostname;
+    } catch {
+      host = "";
+    }
     // Prefer slug-scoped structured price from HTML, then RSC flight data
-    // (many storefronts only embed the real SKU price in RSC), then HTML fallbacks.
+    // (many storefronts only embed the real SKU price in RSC), then HTML fallbacks
+    // (Amazon buy-box / one-time purchase before any naive $ scan).
     let scraped =
       priceForProduct(html, slug, titleHint) ||
       null;
+    if (!scraped && (isAmazonHost(host) || looksLikeAmazonHtml(html))) {
+      scraped = scrapeAmazonBuyBoxPrice(html);
+    }
     if (!scraped && slug) {
       const rsc = await fetchNextRscBody(trimmed);
       if (rsc) scraped = priceForProduct(rsc, slug, titleHint);
     }
-    if (!scraped) scraped = scrapePrice(html, { slug, titleHint });
+    if (!scraped) scraped = scrapePrice(html, { slug, titleHint, host });
 
     if (scraped) {
       if (scraped.clearlyForeign) {
