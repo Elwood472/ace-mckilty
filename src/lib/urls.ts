@@ -139,8 +139,8 @@ export async function assertPublicHttpUrl(raw: string): Promise<URL> {
   return u;
 }
 
-const MAX_REDIRECTS = 5;
-const MAX_BODY_BYTES = 750_000;
+const MAX_REDIRECTS = 3;
+const MAX_BODY_BYTES = 400_000;
 
 function headerRecord(
   headersInit?: HeadersInit,

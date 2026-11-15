@@ -622,7 +622,7 @@ async function fetchNextRscBody(pageUrl: string): Promise<string> {
     const u = new URL(pageUrl);
     if (!u.searchParams.has("_rsc")) u.searchParams.set("_rsc", "1");
     const res = await fetchPublicHttp(u.toString(), {
-      timeoutMs: 8000,
+      timeoutMs: 5000,
       headers: {
         "User-Agent":
           "Mozilla/5.0 (compatible; AceMcKiltyGiftRegistry/1.0; +local)",
@@ -635,9 +635,9 @@ async function fetchNextRscBody(pageUrl: string): Promise<string> {
     if (!/x-component|text\/plain|octet-stream/i.test(ct) && !ct.includes("rsc")) {
       // Some hosts still return flight data with odd types — keep if body looks like it
       const text = await res.text();
-      return text.includes('"amount"') ? text.slice(0, 600_000) : "";
+      return text.includes('"amount"') ? text.slice(0, 200_000) : "";
     }
-    return (await res.text()).slice(0, 600_000);
+    return (await res.text()).slice(0, 200_000);
   } catch {
     return "";
   }
@@ -664,7 +664,7 @@ export async function autofillFromGiftUrl(url: string): Promise<AutofillResult> 
 
   try {
     const res = await fetchPublicHttp(pageUrl, {
-      timeoutMs: 8000,
+      timeoutMs: 5000,
       headers: {
         "User-Agent":
           "Mozilla/5.0 (compatible; AceMcKiltyGiftRegistry/1.0; +local)",
@@ -675,8 +675,8 @@ export async function autofillFromGiftUrl(url: string): Promise<AutofillResult> 
       out.warning = `Could not fetch page (HTTP ${res.status}). Fill fields manually.`;
       return out;
     }
-    // Keep enough HTML for late buy-box widgets (Amazon apex/priceToPay ~400k+)
-    const html = (await res.text()).slice(0, 700_000);
+    // Cap HTML parse size to limit memory / CPU on crafted pages.
+    const html = (await res.text()).slice(0, 350_000);
     const ogTitle =
       metaContent(html, "og:title") ||
       metaContent(html, "twitter:title") ||

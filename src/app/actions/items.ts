@@ -31,12 +31,16 @@ export async function autofillItemFromUrl(
   const ip = await getClientIp();
   if (
     !(await checkRateLimit(`autofill:${user.id}`, {
-      maxHits: 20,
+      maxHits: 8,
       windowMs: 15 * 60 * 1000,
     })) ||
     !(await checkRateLimit(`autofill-ip:${ip}`, {
-      maxHits: 40,
+      maxHits: 15,
       windowMs: 15 * 60 * 1000,
+    })) ||
+    !(await checkRateLimit("autofill-global", {
+      maxHits: 120,
+      windowMs: 60 * 60 * 1000,
     }))
   ) {
     return { warning: "Too many auto-fill attempts. Try again later." };
