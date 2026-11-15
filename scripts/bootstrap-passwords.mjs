@@ -1,8 +1,8 @@
 /**
- * Build-time only (never an HTTP route).
- * When BOOTSTRAP_PASSWORD is set and password_bootstrap_lock is unset,
+ * Build-time helper (also mirrored at first DB connect in the app).
+ * When BOOTSTRAP_PASSWORD is set and password_bootstrap_v2_lock is unset,
  * sets that password for the two imported accounts, then locks forever.
- * Never logs the password value.
+ * Never logs the password value. Not an HTTP route.
  */
 import pg from "pg";
 import bcrypt from "bcryptjs";
@@ -37,14 +37,14 @@ try {
   await client.query("select pg_advisory_lock(7272743)");
   try {
     await client.query(`
-      create table if not exists password_bootstrap_lock (
+      create table if not exists password_bootstrap_v2_lock (
         id boolean primary key default true check (id),
         locked_at timestamptz not null default now()
       )
     `);
 
     const locked = await client.query(
-      "select 1 from password_bootstrap_lock limit 1",
+      "select 1 from password_bootstrap_v2_lock limit 1",
     );
     if (locked.rowCount) {
       console.log("bootstrap-passwords: already locked — skip");
@@ -90,7 +90,7 @@ try {
         );
       }
       await client.query(
-        `insert into password_bootstrap_lock (id, locked_at) values (true, now())
+        `insert into password_bootstrap_v2_lock (id, locked_at) values (true, now())
          on conflict (id) do nothing`,
       );
       await client.query("commit");

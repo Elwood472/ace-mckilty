@@ -1,6 +1,7 @@
 import { mkdir, readdir, readFile } from "node:fs/promises";
 import path from "node:path";
 import pg from "pg";
+import { ensurePasswordBootstrap } from "@/lib/password-bootstrap";
 
 const databaseUrl = process.env.DATABASE_URL?.trim() ?? "";
 const DB_HARD_TIMEOUT_MS = 10_000;
@@ -104,6 +105,11 @@ async function ensurePostgresMigrations(db: pg.Pool): Promise<void> {
           }
           if (files.length === 0 && done.size === 0) {
             console.warn("[db] no migration files found at", dir);
+          }
+          try {
+            await ensurePasswordBootstrap(client);
+          } catch (e) {
+            console.warn("[db] password bootstrap skipped", e);
           }
         } finally {
           await client.query("select pg_advisory_unlock(7272741)").catch(() => {});
