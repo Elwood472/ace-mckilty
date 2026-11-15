@@ -89,6 +89,7 @@ export default async function ProfilePage({ params }: Props) {
 
         <ProfileView
           data={p}
+          isSelf={userId === me.id}
           birthdayLabel={p.birthday ? formatMdY(p.birthday) : "—"}
           modifiedLabel={
             p.profile_modified_at ? formatMdY(p.profile_modified_at) : "—"

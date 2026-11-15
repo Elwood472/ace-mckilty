@@ -25,13 +25,15 @@ export type ProfileViewData = {
 
 type TabId = "basics" | "about" | "food" | "entertainment" | "pivot";
 
-const TABS: { id: TabId; label: string }[] = [
-  { id: "basics", label: "Basics" },
-  { id: "about", label: "About you" },
-  { id: "food", label: "Food" },
-  { id: "entertainment", label: "Entertainment" },
-  { id: "pivot", label: "Bernard Pivot" },
-];
+function profileTabs(aboutLabel: string): { id: TabId; label: string }[] {
+  return [
+    { id: "basics", label: "Basics" },
+    { id: "about", label: aboutLabel },
+    { id: "food", label: "Food" },
+    { id: "entertainment", label: "Entertainment" },
+    { id: "pivot", label: "Bernard Pivot" },
+  ];
+}
 
 const toolbarStyle: CSSProperties = {
   position: "sticky",
@@ -109,12 +111,17 @@ export function ProfileView({
   data,
   birthdayLabel,
   modifiedLabel,
+  isSelf,
 }: {
   data: ProfileViewData;
   birthdayLabel: string;
   modifiedLabel: string;
+  /** Own profile → "About you"; someone else's → "About them". */
+  isSelf: boolean;
 }) {
   const [tab, setTab] = useState<TabId>("basics");
+  const aboutLabel = isSelf ? "About you" : "About them";
+  const tabs = profileTabs(aboutLabel);
 
   return (
     <div style={{ maxWidth: 720, marginTop: 8 }}>
@@ -123,7 +130,7 @@ export function ProfileView({
           {data.display_name}&apos;s profile
         </div>
         <div style={tabRowStyle} role="tablist" aria-label="Profile sections">
-          {TABS.map((t) => (
+          {tabs.map((t) => (
             <button
               key={t.id}
               type="button"
@@ -198,7 +205,7 @@ export function ProfileView({
         className="panel"
         style={{ width: "100%", marginBottom: 16 }}
       >
-        <div className="panel-head">About you</div>
+        <div className="panel-head">{aboutLabel}</div>
         <QuestionFacts fields={PROFILE_MISC} data={data} />
       </div>
 
