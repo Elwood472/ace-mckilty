@@ -4,8 +4,9 @@ import { revalidatePath } from "next/cache";
 import { sql } from "@/lib/db";
 import { assertCsrf } from "@/lib/csrf";
 import { requireUser } from "@/lib/session";
-import { hashPassword } from "@/lib/password";
+import { hashPassword, verifyPassword } from "@/lib/password";
 import { ALL_QUESTIONNAIRE } from "@/lib/profile-fields";
+import { destroyOtherSessions } from "@/lib/session";
 
 function s(fd: FormData, key: string): string {
   const v = fd.get(key);
@@ -27,14 +28,29 @@ export async function updateProfile(
     const birthday = s(formData, "birthday") || null;
     const password = s(formData, "password");
     const confirm = s(formData, "confirmPassword");
+    const currentPassword = s(formData, "currentPassword");
     if (password || confirm) {
       if (password.length < 8) return { error: "Password must be 8+ characters." };
       if (password !== confirm) return { error: "Passwords did not match." };
+      if (!currentPassword) {
+        return { error: "Enter your current password to set a new one." };
+      }
+      const rows = await sql<{ password_hash: string }>(
+        "select password_hash from users where id = $1",
+        [user.id],
+      );
+      if (
+        !rows.length ||
+        !(await verifyPassword(currentPassword, rows[0].password_hash))
+      ) {
+        return { error: "Current password is incorrect." };
+      }
       const hash = await hashPassword(password);
       await sql("update users set password_hash = $1 where id = $2", [
         hash,
         user.id,
       ]);
+      await destroyOtherSessions(user.id);
     }
 
     const sets: string[] = [

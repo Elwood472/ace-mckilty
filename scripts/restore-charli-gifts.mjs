@@ -9,8 +9,16 @@ import { spawnSync } from "node:child_process";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.join(__dirname, "..");
-const LIST_ID = "205358b7-38cc-4e7c-9a1a-8fb6e04c2ded";
-const CHARLI_EMAIL = "cmebray@gmail.com";
+// Personal identifiers come from env — do not hardcode real emails in the repo.
+const LIST_ID = process.env.RESTORE_LIST_ID?.trim() || "";
+const CHARLI_EMAIL = process.env.RESTORE_OWNER_EMAIL?.trim() || "";
+const PARTNER_EMAIL = process.env.RESTORE_PARTNER_EMAIL?.trim() || "";
+if (!LIST_ID || !CHARLI_EMAIL) {
+  console.error(
+    "Set RESTORE_LIST_ID and RESTORE_OWNER_EMAIL (optional RESTORE_PARTNER_EMAIL) before running.",
+  );
+  process.exit(1);
+}
 
 const ETSY_URL =
   "https://www.etsy.com/listing/4322510599/arcane-jinx-and-vi-art-t-shirt-mens?ls=s&ga_order=most_relevant&ga_search_type=all&ga_view_type=gallery&ga_search_query=arcane+jinx+t+shirts&ref=sr_gallery-1-3&sr_prefetch=1&pf_from=market&pro=1&sts=1&content_source=c1670912-f720-4971-90d2-9980f00a5d15%253ALTa702dc091ede9057649f1952b5c1d92cf66fd50e&organic_search_click=1&logging_key=c1670912-f720-4971-90d2-9980f00a5d15%3ALTa702dc091ede9057649f1952b5c1d92cf66fd50e&variation0=5483833173&variation1=5504982528&dd_referrer=https%3A%2F%2Fwww.google.com%2F";
@@ -228,26 +236,31 @@ const charliActive = (
   )
 ).rows[0].c;
 
+const emails = [CHARLI_EMAIL, PARTNER_EMAIL].filter(Boolean);
 const rickCharliCombined = (
   await db.query(
     `select count(*)::int as c
      from items i
      join wish_list_owners o on o.list_id = i.list_id
      join users u on u.id = o.user_id
-     where u.email in ('bluesbrthr@gmail.com','cmebray@gmail.com')
+     where lower(u.email) = any($1::text[])
        and i.deleted = false`,
+    [emails.map((e) => e.toLowerCase())],
   )
 ).rows[0].c;
 
-const rickCount = (
-  await db.query(
-    `select count(*)::int as c
-     from items i
-     join wish_list_owners o on o.list_id = i.list_id
-     join users u on u.id = o.user_id
-     where u.email = 'bluesbrthr@gmail.com' and i.deleted = false`,
-  )
-).rows[0].c;
+const rickCount = PARTNER_EMAIL
+  ? (
+      await db.query(
+        `select count(*)::int as c
+         from items i
+         join wish_list_owners o on o.list_id = i.list_id
+         join users u on u.id = o.user_id
+         where lower(u.email) = $1 and i.deleted = false`,
+        [PARTNER_EMAIL.toLowerCase()],
+      )
+    ).rows[0].c
+  : 0;
 
 await db.close();
 

@@ -8,6 +8,7 @@ import { checkRateLimit } from "@/lib/rate-limit";
 import { assertCsrf } from "@/lib/csrf";
 import { createSession, destroySession } from "@/lib/session";
 import { safeInternalPath } from "@/lib/urls";
+import { getClientIp } from "@/lib/client-ip";
 
 const credentials = z.object({
   email: z.string().email().max(320),
@@ -41,12 +42,23 @@ export async function signUp(
     return { error: "Enter a valid email, name, and password (8+ characters)." };
   }
 
-  if (!(await checkRateLimit(`signup:${email}`))) {
+  const ip = await getClientIp();
+  // Cap account creation per IP and per email (bcrypt is expensive).
+  if (!(await checkRateLimit(`signup-ip:${ip}`, { maxHits: 5, windowMs: 60 * 60 * 1000 }))) {
+    return { error: "Too many attempts. Try again later." };
+  }
+  if (!(await checkRateLimit(`signup:${email}`, { maxHits: 5, windowMs: 60 * 60 * 1000 }))) {
     return { error: "Too many attempts. Try again later." };
   }
 
   const existing = await sql("select 1 from users where email = $1", [email]);
-  if (existing.length) return { error: "An account with that email already exists." };
+  if (existing.length) {
+    // Avoid account-enumeration: same message as other soft failures.
+    await hashPassword(password);
+    return {
+      error: "Could not create account. Try signing in, or use a different email.",
+    };
+  }
 
   const passwordHash = await hashPassword(password);
   const rows = await sql<{ id: string }>(
@@ -77,7 +89,11 @@ export async function signIn(
     return { error: "Enter a valid email and password." };
   }
 
-  if (!(await checkRateLimit(`signin:${email}`))) {
+  const ip = await getClientIp();
+  if (!(await checkRateLimit(`signin-ip:${ip}`, { maxHits: 30, windowMs: 15 * 60 * 1000 }))) {
+    return { error: "Too many attempts. Try again later." };
+  }
+  if (!(await checkRateLimit(`signin:${email}`, { maxHits: 20, windowMs: 15 * 60 * 1000 }))) {
     return { error: "Too many attempts. Try again later." };
   }
 

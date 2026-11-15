@@ -223,6 +223,13 @@ export function ProfileEditForm({
               defaultValue={data.birthday?.slice(0, 10) ?? ""}
             />
             <Field
+              label="Current password"
+              name="currentPassword"
+              type="password"
+              defaultValue=""
+              hint="Required only when changing password"
+            />
+            <Field
               label="New password"
               name="password"
               type="password"

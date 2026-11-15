@@ -173,3 +173,17 @@ export async function categoryToc(
     .map(([category, count]) => ({ category, count }))
     .sort((a, b) => a.category.localeCompare(b.category));
 }
+
+/** Store names for the filter dropdown — same visibility rules as the list. */
+export async function listVisibleSources(
+  listId: string,
+  viewerId: string,
+): Promise<string[]> {
+  const items = await listVisibleItems(listId, viewerId);
+  const sources = new Set<string>();
+  for (const item of items) {
+    const s = item.source?.trim();
+    if (s) sources.add(s);
+  }
+  return [...sources].sort((a, b) => a.localeCompare(b));
+}

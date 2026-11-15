@@ -1,5 +1,8 @@
 import { lookup } from "node:dns/promises";
+import http from "node:http";
+import https from "node:https";
 import { isIP } from "node:net";
+import type { IncomingMessage } from "node:http";
 
 const BLOCKED_HOSTNAMES = new Set([
   "localhost",
@@ -22,9 +25,6 @@ function ipv4ToInt(ip: string): number {
 function isBlockedIpv4(ip: string): boolean {
   const n = ipv4ToInt(ip);
   if (n < 0) return true;
-  // 0.0.0.0/8, 10/8, 127/8, 169.254/16, 172.16/12, 192.168/16,
-  // 100.64/10 (CGNAT), 192.0.0.0/24, 192.0.2.0/24, 198.18/15, 198.51.100/24,
-  // 203.0.113/24, 224/4 multicast, 240/4 reserved
   const blocked: Array<[number, number]> = [
     [0x00000000, 0xff000000],
     [0x0a000000, 0xff000000],
@@ -49,10 +49,8 @@ function isBlockedIpv4(ip: string): boolean {
 function isBlockedIpv6(ip: string): boolean {
   const normalized = ip.toLowerCase();
   if (normalized === "::1" || normalized === "::") return true;
-  // Unique local fc00::/7, link-local fe80::/10
   if (normalized.startsWith("fc") || normalized.startsWith("fd")) return true;
   if (/^fe[89ab]/.test(normalized)) return true;
-  // IPv4-mapped
   const mapped = normalized.match(/^::ffff:(\d+\.\d+\.\d+\.\d+)$/);
   if (mapped) return isBlockedIpv4(mapped[1]);
   const mappedHex = normalized.match(/^::ffff:([0-9a-f]{1,4}):([0-9a-f]{1,4})$/);
@@ -75,10 +73,6 @@ export function isBlockedIp(ip: string): boolean {
   return true;
 }
 
-/**
- * Sync check for href/src attributes: only http(s) with a hostname.
- * Rejects javascript:, data:, and protocol-relative tricks.
- */
 export function safeExternalHref(
   raw: string | null | undefined,
 ): string | null {
@@ -95,15 +89,10 @@ export function safeExternalHref(
   }
 }
 
-/** Same as safeExternalHref; empty string becomes "". */
 export function normalizeStoredHttpUrl(raw: string): string {
   return safeExternalHref(raw) ?? "";
 }
 
-/**
- * Same-origin relative path for post-login redirects.
- * Blocks protocol-relative, backslash open-redirects, and control chars.
- */
 export function safeInternalPath(
   raw: string | null | undefined,
   fallback = "/dashboard",
@@ -114,7 +103,6 @@ export function safeInternalPath(
   if (next.startsWith("//") || next.startsWith("/\\")) return fallback;
   if (next.includes("\\") || next.includes("://")) return fallback;
   if (/[\0-\x1f\x7f]/.test(next)) return fallback;
-  // Disallow embedding credentials-looking absolute URLs via weird parsing
   try {
     const u = new URL(next, "https://example.invalid");
     if (u.origin !== "https://example.invalid") return fallback;
@@ -126,7 +114,6 @@ export function safeInternalPath(
 }
 
 function hostnameOf(u: URL): string {
-  // Node may keep brackets on IPv6 literals (e.g. "[::1]").
   return u.hostname.replace(/^\[|\]$/g, "").replace(/\.$/, "").toLowerCase();
 }
 
@@ -150,20 +137,17 @@ function assertHttpUrlShape(raw: string): URL {
   if (host.endsWith(".local") || host.endsWith(".internal")) {
     throw new Error("That host is not allowed");
   }
-  // Literal IP in the hostname
   if (isIP(host) && isBlockedIp(host)) {
     throw new Error("That address is not allowed");
   }
   return u;
 }
 
-/** Resolve hostname and reject private / loopback / metadata targets. */
-export async function assertPublicHttpUrl(raw: string): Promise<URL> {
-  const u = assertHttpUrlShape(raw);
-  const host = hostnameOf(u);
+/** Resolve hostname to public IPs only (rejects private / loopback / metadata). */
+export async function resolvePublicAddresses(host: string): Promise<string[]> {
   if (isIP(host)) {
     if (isBlockedIp(host)) throw new Error("That address is not allowed");
-    return u;
+    return [host];
   }
   let records: Array<{ address: string }>;
   try {
@@ -172,28 +156,143 @@ export async function assertPublicHttpUrl(raw: string): Promise<URL> {
     throw new Error("Could not resolve host");
   }
   if (!records.length) throw new Error("Could not resolve host");
-  for (const rec of records) {
-    if (isBlockedIp(rec.address)) {
+  const addrs = records.map((r) => r.address);
+  for (const address of addrs) {
+    if (isBlockedIp(address)) {
       throw new Error("That address is not allowed");
     }
   }
+  return addrs;
+}
+
+export async function assertPublicHttpUrl(raw: string): Promise<URL> {
+  const u = assertHttpUrlShape(raw);
+  await resolvePublicAddresses(hostnameOf(u));
   return u;
 }
 
 const MAX_REDIRECTS = 5;
+const MAX_BODY_BYTES = 750_000;
+
+function headerRecord(
+  headersInit?: HeadersInit,
+): Record<string, string> {
+  const out: Record<string, string> = {};
+  if (!headersInit) return out;
+  const h = new Headers(headersInit);
+  h.forEach((value, key) => {
+    out[key] = value;
+  });
+  return out;
+}
+
+/**
+ * Connect to a pinned IP so DNS cannot rebind between check and fetch.
+ * Sets Host / SNI to the original hostname.
+ */
+function requestPinned(
+  target: URL,
+  pinnedIp: string,
+  init: {
+    method?: string;
+    headers?: HeadersInit;
+    signal?: AbortSignal;
+    timeoutMs: number;
+  },
+): Promise<Response> {
+  const isHttps = target.protocol === "https:";
+  const lib = isHttps ? https : http;
+  const family = pinnedIp.includes(":") ? 6 : 4;
+  const headers = headerRecord(init.headers);
+  headers.host = target.host;
+
+  return new Promise((resolve, reject) => {
+    const req = lib.request(
+      {
+        protocol: target.protocol,
+        hostname: pinnedIp,
+        port: target.port || (isHttps ? 443 : 80),
+        path: `${target.pathname}${target.search}`,
+        method: init.method || "GET",
+        headers,
+        servername: isHttps ? hostnameOf(target) : undefined,
+        lookup: (_hostname, _options, callback) => {
+          const cb = callback as (
+            err: Error | null,
+            address: string,
+            family: number,
+          ) => void;
+          cb(null, pinnedIp, family);
+        },
+        family,
+      },
+      (res: IncomingMessage) => {
+        const chunks: Buffer[] = [];
+        let size = 0;
+        res.on("data", (chunk: Buffer) => {
+          size += chunk.length;
+          if (size > MAX_BODY_BYTES) {
+            req.destroy();
+            reject(new Error("Response too large"));
+            return;
+          }
+          chunks.push(chunk);
+        });
+        res.on("end", () => {
+          const body = Buffer.concat(chunks);
+          const hdrs = new Headers();
+          for (const [k, v] of Object.entries(res.headers)) {
+            if (v == null) continue;
+            if (Array.isArray(v)) v.forEach((item) => hdrs.append(k, item));
+            else hdrs.set(k, v);
+          }
+          resolve(
+            new Response(body, {
+              status: res.statusCode ?? 0,
+              statusText: res.statusMessage,
+              headers: hdrs,
+            }),
+          );
+        });
+        res.on("error", reject);
+      },
+    );
+
+    const onAbort = () => {
+      req.destroy();
+      reject(new Error("Aborted"));
+    };
+    if (init.signal) {
+      if (init.signal.aborted) {
+        onAbort();
+        return;
+      }
+      init.signal.addEventListener("abort", onAbort, { once: true });
+    }
+    const timer = setTimeout(() => {
+      req.destroy();
+      reject(new Error("Timeout"));
+    }, init.timeoutMs);
+    req.on("error", reject);
+    req.on("close", () => clearTimeout(timer));
+    req.end();
+  });
+}
 
 /**
  * Server-side fetch that only hits public http(s) hosts.
- * Validates the initial URL and every redirect target (DNS + IP).
+ * Pins the TCP connection to a validated IP to prevent DNS rebinding.
  */
 export async function fetchPublicHttp(
   rawUrl: string,
   init: RequestInit & { timeoutMs?: number } = {},
 ): Promise<Response> {
   const { timeoutMs = 8000, ...rest } = init;
-  let current = (await assertPublicHttpUrl(rawUrl)).toString();
+  let current = assertHttpUrlShape(rawUrl);
 
   for (let hop = 0; hop <= MAX_REDIRECTS; hop++) {
+    const addrs = await resolvePublicAddresses(hostnameOf(current));
+    const pinnedIp = addrs[0];
     const ctrl = new AbortController();
     const timer = setTimeout(() => ctrl.abort(), timeoutMs);
     const userSignal = rest.signal;
@@ -204,10 +303,11 @@ export async function fetchPublicHttp(
     }
     let res: Response;
     try {
-      res = await fetch(current, {
-        ...rest,
+      res = await requestPinned(current, pinnedIp, {
+        method: typeof rest.method === "string" ? rest.method : "GET",
+        headers: rest.headers,
         signal: ctrl.signal,
-        redirect: "manual",
+        timeoutMs,
       });
     } finally {
       clearTimeout(timer);
@@ -216,14 +316,9 @@ export async function fetchPublicHttp(
 
     if (res.status >= 300 && res.status < 400) {
       const location = res.headers.get("location");
-      if (!location) {
-        throw new Error("Redirect without Location");
-      }
-      if (hop === MAX_REDIRECTS) {
-        throw new Error("Too many redirects");
-      }
-      const next = new URL(location, current).toString();
-      current = (await assertPublicHttpUrl(next)).toString();
+      if (!location) throw new Error("Redirect without Location");
+      if (hop === MAX_REDIRECTS) throw new Error("Too many redirects");
+      current = assertHttpUrlShape(new URL(location, current).toString());
       continue;
     }
     return res;

@@ -45,6 +45,20 @@ export async function destroySession(): Promise<void> {
   });
 }
 
+/** Revoke every session except the current cookie (e.g. after password change). */
+export async function destroyOtherSessions(userId: string): Promise<void> {
+  const jar = await cookies();
+  const token = jar.get(SESSION_COOKIE)?.value;
+  if (token) {
+    await sql(
+      "delete from sessions where user_id = $1 and id <> $2",
+      [userId, token],
+    );
+  } else {
+    await sql("delete from sessions where user_id = $1", [userId]);
+  }
+}
+
 export async function getCurrentUser(): Promise<User | null> {
   const jar = await cookies();
   const token = jar.get(SESSION_COOKIE)?.value;

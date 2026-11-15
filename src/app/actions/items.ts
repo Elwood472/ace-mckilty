@@ -14,6 +14,8 @@ import {
 import { resolveSource } from "@/lib/source";
 import { autofillFromGiftUrl, type AutofillResult } from "@/lib/autofill";
 import { normalizeStoredHttpUrl } from "@/lib/urls";
+import { checkRateLimit } from "@/lib/rate-limit";
+import { getClientIp } from "@/lib/client-ip";
 
 function s(fd: FormData, key: string): string {
   const v = fd.get(key);
@@ -25,7 +27,20 @@ export type ActionState = { error?: string; ok?: string };
 export async function autofillItemFromUrl(
   url: string,
 ): Promise<AutofillResult> {
-  await requireUser();
+  const user = await requireUser();
+  const ip = await getClientIp();
+  if (
+    !(await checkRateLimit(`autofill:${user.id}`, {
+      maxHits: 20,
+      windowMs: 15 * 60 * 1000,
+    })) ||
+    !(await checkRateLimit(`autofill-ip:${ip}`, {
+      maxHits: 40,
+      windowMs: 15 * 60 * 1000,
+    }))
+  ) {
+    return { warning: "Too many auto-fill attempts. Try again later." };
+  }
   return autofillFromGiftUrl(url);
 }
 
@@ -352,9 +367,14 @@ export async function markPurchased(
       list_id: string;
       quantity: number | null;
       restricted: boolean;
-    }>("select id, list_id, quantity, restricted from items where id = $1", [
-      itemId,
-    ]);
+      deleted: boolean;
+      display_date: string | null;
+    }>(
+      `select id, list_id, quantity, restricted, deleted,
+              display_date::text as display_date
+       from items where id = $1`,
+      [itemId],
+    );
     if (!items.length) return { error: "Item not found." };
     const item = items[0];
 
@@ -362,6 +382,13 @@ export async function markPurchased(
 
     if (await isListOwner(item.list_id, user.id)) {
       return { error: "You cannot mark items on your own list as purchased." };
+    }
+
+    // Same visibility rules as listVisibleItems for non-owners.
+    if (item.deleted) return { error: "Item not found." };
+    if (item.display_date) {
+      const today = new Date().toISOString().slice(0, 10);
+      if (item.display_date > today) return { error: "Item not found." };
     }
 
     if (item.restricted) {
@@ -373,11 +400,13 @@ export async function markPurchased(
     }
 
     const result = await withTransaction(async (query) => {
-      const locked = await query<{ quantity: number | null }>(
-        "select quantity from items where id = $1 for update",
+      const locked = await query<{ quantity: number | null; deleted: boolean }>(
+        "select quantity, deleted from items where id = $1 for update",
         [itemId],
       );
-      if (!locked.length) return { error: "Item not found." } as const;
+      if (!locked.length || locked[0].deleted) {
+        return { error: "Item not found." } as const;
+      }
 
       const purchased = await query<{ total: number }>(
         `select coalesce(sum(quantity), 0)::int as total from purchases where item_id = $1`,

@@ -108,7 +108,10 @@ type PeopleSearchRow = {
   pending_request: boolean;
 };
 
-/** True when the two users already share a list relationship. */
+/**
+ * True when the two users already share list access or co-ownership.
+ * Pending access requests do NOT count (cannot force co-ownership).
+ */
 export async function arePeopleRelated(
   viewerId: string,
   otherId: string,
@@ -132,16 +135,6 @@ export async function arePeopleRelated(
        select 1 from wish_list_owners a
        join wish_list_owners b on b.list_id = a.list_id and b.user_id = $2
        where a.user_id = $1
-     ) or exists (
-       -- pending access request either direction on a personal list
-       select 1 from list_access_requests r
-       join wish_lists l on l.id = r.list_id and l.list_type = 'personal'
-       join wish_list_owners o on o.list_id = l.id
-       where r.status = 'pending'
-         and (
-           (r.requester_id = $1 and o.user_id = $2)
-           or (r.requester_id = $2 and o.user_id = $1)
-         )
      )`,
     [viewerId, otherId],
   );

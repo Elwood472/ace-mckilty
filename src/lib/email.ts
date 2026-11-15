@@ -23,10 +23,9 @@ export async function sendEmail(opts: {
     "Ace McKilty Gift Registry <onboarding@resend.dev>";
 
   if (!apiKey) {
+    // Do not log recipient, subject, or body (invite tokens / PII).
     console.info(
-      "[email:stub] RESEND_API_KEY unset — email not sent.\n" +
-        `  to: ${opts.to}\n  subject: ${opts.subject}\n  body:\n${opts.text}\n` +
-        "  Bind secret RESEND_API_KEY (and optional EMAIL_FROM) for live mail.",
+      "[email:stub] RESEND_API_KEY unset — email not sent. Bind RESEND_API_KEY for live mail.",
     );
     return { ok: true, mode: "stub" };
   }

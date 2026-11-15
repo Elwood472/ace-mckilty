@@ -200,15 +200,17 @@ function priceForProduct(
       }
     }
 
-    // Window around each slug occurrence — take the first price.amount (not compareAt)
+    // Window around slug occurrences — lowercase once; cap scans (DoS guard).
+    const lowerBody = body.toLowerCase();
+    const needle = slug.toLowerCase();
     let idx = 0;
-    while (idx < body.length) {
-      const i = body.toLowerCase().indexOf(slug, idx);
+    let scans = 0;
+    const MAX_SCANS = 40;
+    while (scans < MAX_SCANS && idx < lowerBody.length) {
+      const i = lowerBody.indexOf(needle, idx);
       if (i < 0) break;
+      scans += 1;
       const window = body.slice(i, i + 2500);
-      if (/compareAtPrice|compare_at_price|normalPrice/i.test(window)) {
-        // still allow current price in same window
-      }
       const amount = window.match(
         /"price"\s*:\s*\{\s*"amount"\s*:\s*"?([0-9]+(?:\.[0-9]+)?)"?\s*,\s*"currencyCode"\s*:\s*"([A-Z]{3})"/i,
       );
@@ -223,7 +225,7 @@ function priceForProduct(
         const money = moneyFromAmount(amount2[1], amount2[2]);
         if (money) return money;
       }
-      idx = i + slug.length;
+      idx = i + needle.length;
     }
   }
 

@@ -5,7 +5,7 @@ import { ensureCsrfToken } from "@/lib/csrf";
 import { sql } from "@/lib/db";
 import { getCurrentUser } from "@/lib/session";
 import { canViewList, isListOwner } from "@/lib/authz";
-import { categoryToc, listVisibleItems } from "@/lib/items";
+import { categoryToc, listVisibleItems, listVisibleSources } from "@/lib/items";
 import { formatMd } from "@/lib/dates";
 import type { SortDir, SortKey } from "@/lib/types";
 import { ItemTable, ListFilters } from "./list-client";
@@ -123,14 +123,7 @@ export default async function ListPage({ params, searchParams }: Props) {
     source: source || null,
   });
   const toc = await categoryToc(listId, user.id);
-
-  const sourceRows = await sql<{ source: string }>(
-    `select distinct source from items
-     where list_id = $1 and deleted = false and source <> ''
-     order by source`,
-    [listId],
-  );
-  const sources = sourceRows.map((r) => r.source);
+  const sources = await listVisibleSources(listId, user.id);
 
   return (
     <>

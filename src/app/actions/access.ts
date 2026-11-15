@@ -14,6 +14,7 @@ import {
 import { ensurePersonalList, getPersonalListId } from "@/lib/lists";
 import { checkRateLimit } from "@/lib/rate-limit";
 import { searchPeople } from "@/lib/people";
+import { getClientIp } from "@/lib/client-ip";
 
 function s(fd: FormData, key: string): string {
   const v = fd.get(key);
@@ -43,8 +44,50 @@ export async function createListEmailInvite(
     if (!email || !email.includes("@")) {
       return { error: "Enter a valid email." };
     }
-    if (!(await checkRateLimit(`create-invite:${user.id}`))) {
+    const ip = await getClientIp();
+    // Tight limits: open sign-up must not turn Resend into a spam relay.
+    if (
+      !(await checkRateLimit(`create-invite:${user.id}`, {
+        maxHits: 5,
+        windowMs: 15 * 60 * 1000,
+      }))
+    ) {
       return { error: "Too many invites. Try again later." };
+    }
+    if (
+      !(await checkRateLimit(`create-invite-ip:${ip}`, {
+        maxHits: 10,
+        windowMs: 15 * 60 * 1000,
+      }))
+    ) {
+      return { error: "Too many invites. Try again later." };
+    }
+    if (
+      !(await checkRateLimit(`create-invite-day:${user.id}`, {
+        maxHits: 20,
+        windowMs: 24 * 60 * 60 * 1000,
+      }))
+    ) {
+      return { error: "Daily invite limit reached. Try again tomorrow." };
+    }
+    // New accounts: only a couple of invites in the first day.
+    const age = await sql<{ created_at: string }>(
+      "select created_at::text as created_at from users where id = $1",
+      [user.id],
+    );
+    const createdMs = age[0] ? new Date(age[0].created_at).getTime() : 0;
+    if (Date.now() - createdMs < 24 * 60 * 60 * 1000) {
+      if (
+        !(await checkRateLimit(`create-invite-new:${user.id}`, {
+          maxHits: 3,
+          windowMs: 24 * 60 * 60 * 1000,
+        }))
+      ) {
+        return {
+          error:
+            "New accounts can send only a few invites on the first day. Try again later.",
+        };
+      }
     }
 
     const token = nanoid(24);
@@ -362,5 +405,22 @@ export async function searchPeopleAction(
   }[]
 > {
   const user = await requireUser();
+  const ip = await getClientIp();
+  if (
+    !(await checkRateLimit(`people-search:${user.id}`, {
+      maxHits: 60,
+      windowMs: 15 * 60 * 1000,
+    }))
+  ) {
+    return [];
+  }
+  if (
+    !(await checkRateLimit(`people-search-ip:${ip}`, {
+      maxHits: 120,
+      windowMs: 15 * 60 * 1000,
+    }))
+  ) {
+    return [];
+  }
   return searchPeople(user.id, query);
 }
