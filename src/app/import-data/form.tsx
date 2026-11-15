@@ -13,7 +13,7 @@ export function ImportDataForm({ csrf }: { csrf: string }) {
   const [state, action, pending] = useActionState(importDumpAction, initial);
 
   return (
-    <form action={action} style={{ maxWidth: 36 * 16 }}>
+    <form action={action} style={{ maxWidth: 36 * 16 }} autoComplete="off">
       <CsrfField token={csrf} />
       <p>
         <label>
@@ -60,7 +60,8 @@ export function ImportDataForm({ csrf }: { csrf: string }) {
       {state.ok ? (
         <div style={{ color: "#060" }}>
           <p>
-            <b>Import complete.</b> You can remove the import secret now.
+            <b>Import complete.</b> Sign in with an imported account. Remove{" "}
+            <code>IMPORT_SECRET</code> now — this path is permanently locked.
           </p>
           {state.imported ? (
             <p style={{ fontSize: 13 }}>

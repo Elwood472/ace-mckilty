@@ -27,7 +27,8 @@ const TABLE_ORDER = [
 
 const EPHEMERAL = new Set(["sessions", "auth_rate_limits"]);
 
-export const MAX_DUMP_BYTES = 2_000_000;
+/** Max dump JSON size (paste or file). */
+export const MAX_DUMP_BYTES = 1_500_000;
 
 type DumpTable = {
   columns: { name: string }[];
@@ -80,7 +81,7 @@ export function parseDumpJson(text: string): GiftRegistryDump {
   return parsed as GiftRegistryDump;
 }
 
-/** Constant-time compare for IMPORT_SECRET (length mismatch → false). */
+/** Constant-time compare via SHA-256 digests (length-safe). */
 export function importSecretsEqual(provided: string, expected: string): boolean {
   const a = createHash("sha256").update(provided, "utf8").digest();
   const b = createHash("sha256").update(expected, "utf8").digest();
@@ -89,6 +90,11 @@ export function importSecretsEqual(provided: string, expected: string): boolean 
 
 export function getImportSecret(): string {
   return process.env.IMPORT_SECRET?.trim() ?? "";
+}
+
+/** True only when a non-empty IMPORT_SECRET is configured. */
+export function isImportSecretConfigured(): boolean {
+  return getImportSecret().length > 0;
 }
 
 function databaseUrl(): string {
@@ -109,38 +115,97 @@ function pgClient(connectionString: string): pg.Client {
   });
 }
 
-export async function countUsers(): Promise<number | null> {
+async function ensureImportLockTable(
+  query: (text: string, params?: unknown[]) => Promise<{ rowCount: number | null; rows: unknown[] }>,
+): Promise<void> {
+  await query(`
+    create table if not exists data_import_lock (
+      id boolean primary key default true check (id),
+      locked_at timestamptz not null default now()
+    )
+  `);
+}
+
+export type ImportGate = {
+  /** Secrets configured and import not permanently locked. */
+  available: boolean;
+  locked: boolean;
+  userCount: number | null;
+  /** Empty DB, or sole bootstrap user matching sessionUserId. */
+  eligible: boolean;
+};
+
+/**
+ * Gate for /import-data. Does not reveal why unavailable to callers that 404.
+ */
+export async function getImportGate(sessionUserId?: string): Promise<ImportGate> {
+  if (!isImportSecretConfigured()) {
+    return { available: false, locked: false, userCount: null, eligible: false };
+  }
+
   const url = databaseUrl();
   if (!url) {
-    // Local PGlite — use app sql helper via dynamic import to avoid cycles.
-    const { sql } = await import("./db");
-    const rows = await sql<{ n: number }>("select count(*)::int as n from users");
-    return rows[0]?.n ?? 0;
+    // Local PGlite: import path is hosted-only.
+    return { available: false, locked: false, userCount: null, eligible: false };
   }
+
   const client = pgClient(url);
   await client.connect();
   try {
-    const exists = await client.query(
+    const query = async (text: string, params: unknown[] = []) =>
+      client.query(text, params);
+    await ensureImportLockTable(query);
+
+    const lock = await client.query("select 1 from data_import_lock limit 1");
+    if (lock.rowCount) {
+      return { available: false, locked: true, userCount: null, eligible: false };
+    }
+
+    const usersExist = await client.query(
       `select 1 from information_schema.tables
        where table_schema = 'public' and table_name = 'users'`,
     );
-    if (!exists.rowCount) return null;
-    const countRes = await client.query("select count(*)::int as n from users");
-    return (countRes.rows[0]?.n as number) ?? 0;
+    if (!usersExist.rowCount) {
+      return { available: true, locked: false, userCount: null, eligible: false };
+    }
+
+    const countRes = await client.query<{ n: number }>(
+      "select count(*)::int as n from users",
+    );
+    const userCount = countRes.rows[0]?.n ?? 0;
+
+    let eligible = userCount === 0;
+    if (!eligible && userCount === 1 && sessionUserId) {
+      const sole = await client.query<{ id: string }>(
+        "select id from users limit 1",
+      );
+      eligible = sole.rows[0]?.id === sessionUserId;
+    }
+
+    return {
+      available: true,
+      locked: false,
+      userCount,
+      eligible,
+    };
   } finally {
     await client.end();
   }
 }
 
 /**
- * Import dump when users table is empty. Never logs PII.
- * Returns per-table row attempt counts only.
+ * Import dump for an authenticated bootstrap operator.
+ * Requires: empty users OR sole user === operatorId.
+ * Wipes app tables (not data_import_lock) when replacing a bootstrap user,
+ * then imports, then sets the permanent lock in the same transaction.
+ * Never logs PII.
  */
 export async function importDumpRequireEmpty(
   dump: GiftRegistryDump,
-  opts: { skipEphemeral?: boolean } = {},
+  opts: { skipEphemeral?: boolean; operatorId: string },
 ): Promise<Record<string, number>> {
   const skipEphemeral = opts.skipEphemeral ?? true;
+  const operatorId = opts.operatorId;
   const url = databaseUrl();
   if (!url) {
     throw new Error("NO_DATABASE_URL");
@@ -154,6 +219,15 @@ export async function importDumpRequireEmpty(
     await client.query("set local lock_timeout = '60s'");
     await client.query("select pg_advisory_xact_lock(7272742)");
 
+    await ensureImportLockTable((text, params = []) =>
+      client.query(text, params),
+    );
+
+    const lock = await client.query("select 1 from data_import_lock limit 1");
+    if (lock.rowCount) {
+      throw new Error("REFUSE_LOCKED");
+    }
+
     const mig = await client.query(
       `select 1 from information_schema.tables
        where table_schema = 'public' and table_name = 'users'`,
@@ -162,11 +236,34 @@ export async function importDumpRequireEmpty(
       throw new Error("SCHEMA_MISSING");
     }
 
-    const countRes = await client.query(
+    const countRes = await client.query<{ n: number }>(
       "select count(*)::int as n from users",
     );
-    const n = (countRes.rows[0]?.n as number) ?? 0;
-    if (n > 0) {
+    const n = countRes.rows[0]?.n ?? 0;
+    if (n > 1) {
+      throw new Error("REFUSE_NOT_EMPTY");
+    }
+    if (n === 1) {
+      const sole = await client.query<{ id: string }>(
+        "select id from users limit 1",
+      );
+      if (sole.rows[0]?.id !== operatorId) {
+        throw new Error("REFUSE_NOT_EMPTY");
+      }
+      // Replace bootstrap account with dump contents.
+      for (const name of [...TABLE_ORDER].reverse()) {
+        if (name === "schema_migrations") continue;
+        const exists = await client.query(
+          `select 1 from information_schema.tables
+           where table_schema = 'public' and table_name = $1`,
+          [name],
+        );
+        if (!exists.rowCount) continue;
+        await client.query(
+          `truncate table ${quoteIdent(name)} restart identity cascade`,
+        );
+      }
+    } else if (n !== 0) {
       throw new Error("REFUSE_NOT_EMPTY");
     }
 
@@ -219,6 +316,11 @@ export async function importDumpRequireEmpty(
       }
       imported[name] = count;
     }
+
+    await client.query(
+      `insert into data_import_lock (id, locked_at) values (true, now())
+       on conflict (id) do nothing`,
+    );
 
     await client.query("commit");
     return imported;
