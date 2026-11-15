@@ -78,7 +78,7 @@ export function SearchPeoplePanel({ csrf }: { csrf: string }) {
           const v = e.target.value;
           setQ(v);
           start(async () => {
-            if (v.trim().length < 3) {
+            if (v.trim().length < 4) {
               setHits([]);
               return;
             }
@@ -87,8 +87,8 @@ export function SearchPeoplePanel({ csrf }: { csrf: string }) {
         }}
       />
       <p style={{ fontSize: 12, color: "#555", margin: "4px 0 0" }}>
-        Anyone signed in can search names. Full profiles open after someone
-        shares their list with you.
+        Type at least 4 letters of a name (prefix match). Full profiles open
+        after someone shares their list with you.
       </p>
       {pending ? (
         <p style={{ fontSize: 12, color: "#555" }}>Searching…</p>

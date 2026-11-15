@@ -143,7 +143,7 @@ export async function arePeopleRelated(
 
 /**
  * Find people for access requests (any signed-in user).
- * - Name: global substring match on display_name only (not email).
+ * - Name: global prefix match on display_name only (not email).
  * - Exact email: only when viewer already shares list access / pending
  *   request / co-ownership — never confirms arbitrary accounts exist.
  * Email addresses are never returned unless the viewer already has access.
@@ -179,8 +179,8 @@ export async function searchPeople(
   `;
 
   const byExactEmail = looksLikeEmail(q);
-  // Name search: require 3+ chars and cap results to slow directory scraping.
-  if (!byExactEmail && q.length < 3) return [];
+  // Prefix-only, 4+ chars, small cap — slows directory scraping vs substring.
+  if (!byExactEmail && q.length < 4) return [];
 
   const rows = byExactEmail
     ? await sql<PeopleSearchRow>(
@@ -214,8 +214,8 @@ export async function searchPeople(
          where u.id <> $1
            and u.display_name ilike $2
          order by u.display_name
-         limit 8`,
-        [viewerId, `%${q}%`],
+         limit 5`,
+        [viewerId, `${q}%`],
       );
 
   return rows.map((r) => ({

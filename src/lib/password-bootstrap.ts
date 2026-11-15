@@ -3,19 +3,31 @@ import "server-only";
 import type pg from "pg";
 import { hashPassword } from "@/lib/password";
 
-const BOOTSTRAP_EMAILS = ["bluesbrthr@gmail.com", "cmebray@gmail.com"] as const;
+/**
+ * Target accounts for one-shot password set — never hardcode emails in source.
+ * Set BOOTSTRAP_EMAILS as a comma-separated list (lowercase) when needed.
+ */
+function bootstrapEmails(): string[] {
+  return (process.env.BOOTSTRAP_EMAILS ?? "")
+    .split(",")
+    .map((e) => e.trim().toLowerCase())
+    .filter((e) => e.includes("@"));
+}
 
 /**
- * One-shot password set for imported Rick/Charli accounts.
+ * One-shot password set for imported accounts named in BOOTSTRAP_EMAILS.
  * Runs server-side (build script and first DB connect) when
  * BOOTSTRAP_PASSWORD is set and password_bootstrap_v2_lock is unset.
- * Never logs the password. Not an HTTP route.
+ * Never logs the password or email addresses. Not an HTTP route.
  */
 export async function ensurePasswordBootstrap(
   client: pg.PoolClient,
 ): Promise<void> {
   const password = process.env.BOOTSTRAP_PASSWORD?.trim() ?? "";
   if (!password || password.length < 8) return;
+
+  const emails = bootstrapEmails();
+  if (emails.length === 0) return;
 
   await client.query(`
     create table if not exists password_bootstrap_v2_lock (
@@ -38,15 +50,15 @@ export async function ensurePasswordBootstrap(
   const found = await client.query<{ email: string }>(
     `select lower(email) as email from users
      where lower(email) = any($1::text[])`,
-    [BOOTSTRAP_EMAILS as unknown as string[]],
+    [emails],
   );
-  const emails = new Set(found.rows.map((r) => r.email));
-  if (BOOTSTRAP_EMAILS.some((e) => !emails.has(e))) return;
+  const present = new Set(found.rows.map((r) => r.email));
+  if (emails.some((e) => !present.has(e))) return;
 
   const hash = await hashPassword(password);
   await client.query("begin");
   try {
-    for (const email of BOOTSTRAP_EMAILS) {
+    for (const email of emails) {
       await client.query(
         `update users set password_hash = $1 where lower(email) = $2`,
         [hash, email],
@@ -63,7 +75,9 @@ export async function ensurePasswordBootstrap(
        on conflict (id) do nothing`,
     );
     await client.query("commit");
-    console.info("[db] password bootstrap v2 applied for 2 accounts; locked");
+    console.info(
+      `[db] password bootstrap v2 applied for ${emails.length} accounts; locked`,
+    );
   } catch (error) {
     await client.query("rollback");
     throw error;

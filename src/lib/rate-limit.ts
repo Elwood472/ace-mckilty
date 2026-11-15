@@ -41,3 +41,53 @@ export async function checkRateLimit(
   ]);
   return true;
 }
+
+/** Current hits in the active window (0 if missing/expired). Does not bump. */
+export async function getRateLimitHits(
+  key: string,
+  windowMs: number = DEFAULT_WINDOW_MS,
+): Promise<number> {
+  const rows = await sql<{ hits: number; window_start: string }>(
+    "select hits, window_start from auth_rate_limits where key = $1",
+    [key],
+  );
+  if (rows.length === 0) return 0;
+  const start = new Date(rows[0].window_start).getTime();
+  if (Date.now() - start > windowMs) return 0;
+  return rows[0].hits;
+}
+
+/** Increment a counter without enforcing a max (for failure tracking). */
+export async function bumpCounter(
+  key: string,
+  windowMs: number = DEFAULT_WINDOW_MS,
+): Promise<number> {
+  const rows = await sql<{ hits: number; window_start: string }>(
+    "select hits, window_start from auth_rate_limits where key = $1",
+    [key],
+  );
+  const now = Date.now();
+  if (rows.length === 0) {
+    await sql(
+      "insert into auth_rate_limits (key, hits, window_start) values ($1, 1, now())",
+      [key],
+    );
+    return 1;
+  }
+  const start = new Date(rows[0].window_start).getTime();
+  if (now - start > windowMs) {
+    await sql(
+      "update auth_rate_limits set hits = 1, window_start = now() where key = $1",
+      [key],
+    );
+    return 1;
+  }
+  await sql("update auth_rate_limits set hits = hits + 1 where key = $1", [
+    key,
+  ]);
+  return rows[0].hits + 1;
+}
+
+export async function clearRateLimit(key: string): Promise<void> {
+  await sql("delete from auth_rate_limits where key = $1", [key]);
+}

@@ -4,12 +4,17 @@ import { redirect } from "next/navigation";
 import { z } from "zod";
 import { sql } from "@/lib/db";
 import { hashPassword, verifyPassword } from "@/lib/password";
-import { checkRateLimit } from "@/lib/rate-limit";
+import { bumpCounter, checkRateLimit, clearRateLimit } from "@/lib/rate-limit";
 import { assertCsrf } from "@/lib/csrf";
 import { createSession, destroySession } from "@/lib/session";
 import { safeInternalPath } from "@/lib/url-safety";
 import { getClientIp } from "@/lib/client-ip";
 import { assertHuman } from "@/lib/captcha";
+import {
+  loginCaptchaRequired,
+  SIGNIN_FAIL_WINDOW,
+  signInFailKey,
+} from "@/lib/login-captcha";
 
 const credentials = z.object({
   email: z.string().email().max(320),
@@ -113,7 +118,13 @@ export async function signIn(
   let ok = false;
   try {
     const ip = await getClientIp();
-    // No CAPTCHA on login — rate limits blunt stuffing; CAPTCHA stays on signup.
+    const failKey = signInFailKey(ip);
+    // CAPTCHA only after repeated failures — normal logins stay friction-free.
+    if (await loginCaptchaRequired(ip)) {
+      const human = await assertHuman(formData, ip);
+      if (!human.ok) return { error: human.error };
+    }
+
     const email = formString(formData, "email").toLowerCase();
     const password = formString(formData, "password");
     const parsed = credentials.safeParse({ email, password });
@@ -146,9 +157,11 @@ export async function signIn(
     );
     const user = rows[0];
     if (!user || !(await verifyPassword(password, user.password_hash))) {
+      await bumpCounter(failKey, SIGNIN_FAIL_WINDOW);
       return { error: "Email or password is incorrect." };
     }
 
+    await clearRateLimit(failKey);
     await createSession(user.id);
     const named = await sql<{ display_name: string }>(
       "select display_name from users where id = $1",

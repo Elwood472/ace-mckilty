@@ -479,7 +479,7 @@ export async function searchPeopleAction(
   const ip = await getClientIp();
   if (
     !(await checkRateLimit(`people-search:${user.id}`, {
-      maxHits: 30,
+      maxHits: 20,
       windowMs: 15 * 60 * 1000,
     }))
   ) {
@@ -487,7 +487,7 @@ export async function searchPeopleAction(
   }
   if (
     !(await checkRateLimit(`people-search-ip:${ip}`, {
-      maxHits: 40,
+      maxHits: 25,
       windowMs: 15 * 60 * 1000,
     }))
   ) {

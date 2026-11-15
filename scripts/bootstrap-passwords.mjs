@@ -1,13 +1,17 @@
 /**
  * Build-time helper (also mirrored at first DB connect in the app).
- * When BOOTSTRAP_PASSWORD is set and password_bootstrap_v2_lock is unset,
- * sets that password for the two imported accounts, then locks forever.
- * Never logs the password value. Not an HTTP route.
+ * When BOOTSTRAP_PASSWORD + BOOTSTRAP_EMAILS are set and
+ * password_bootstrap_v2_lock is unset, sets that password for those
+ * accounts, then locks forever.
+ * Never logs the password or email values. Not an HTTP route.
  */
 import pg from "pg";
 import bcrypt from "bcryptjs";
 
-const BOOTSTRAP_EMAILS = ["bluesbrthr@gmail.com", "cmebray@gmail.com"];
+const BOOTSTRAP_EMAILS = (process.env.BOOTSTRAP_EMAILS ?? "")
+  .split(",")
+  .map((e) => e.trim().toLowerCase())
+  .filter((e) => e.includes("@"));
 const password = process.env.BOOTSTRAP_PASSWORD?.trim() ?? "";
 const url =
   process.env.DATABASE_URL_UNPOOLED?.trim() ||
@@ -25,6 +29,10 @@ if (!password) {
 if (password.length < 8) {
   console.error("bootstrap-passwords: BOOTSTRAP_PASSWORD must be 8+ characters");
   process.exit(1);
+}
+if (BOOTSTRAP_EMAILS.length === 0) {
+  console.log("bootstrap-passwords: BOOTSTRAP_EMAILS unset — skip");
+  process.exit(0);
 }
 
 const client = new pg.Client({
@@ -69,7 +77,7 @@ try {
     const missing = BOOTSTRAP_EMAILS.filter((e) => !emails.has(e));
     if (missing.length) {
       console.log(
-        "bootstrap-passwords: imported accounts not present yet — skip",
+        "bootstrap-passwords: target accounts not present yet — skip",
       );
       process.exit(0);
     }
@@ -95,7 +103,7 @@ try {
       );
       await client.query("commit");
       console.log(
-        "bootstrap-passwords: updated 2 accounts and set permanent lock",
+        `bootstrap-passwords: updated ${BOOTSTRAP_EMAILS.length} accounts and set permanent lock`,
       );
     } catch (error) {
       await client.query("rollback");

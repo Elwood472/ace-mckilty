@@ -166,13 +166,23 @@ export async function getImportGate(sessionUserId?: string): Promise<ImportGate>
       return { available: true, locked: false, userCount: null, eligible: false };
     }
 
-    const seeded = await client.query(
-      `select 1 from users
-       where lower(email) in ('bluesbrthr@gmail.com', 'cmebray@gmail.com')
-       limit 1`,
+    // Prefer lock tables over hardcoding account emails in source.
+    const bootLocked = await client.query(
+      `select 1 from information_schema.tables
+       where table_schema = 'public' and table_name = 'password_bootstrap_v2_lock'`,
     );
-    if (seeded.rowCount) {
-      return { available: false, locked: true, userCount: null, eligible: false };
+    if (bootLocked.rowCount) {
+      const row = await client.query(
+        "select 1 from password_bootstrap_v2_lock limit 1",
+      );
+      if (row.rowCount) {
+        return {
+          available: false,
+          locked: true,
+          userCount: null,
+          eligible: false,
+        };
+      }
     }
 
     const countRes = await client.query<{ n: number }>(
@@ -242,14 +252,16 @@ export async function importDumpRequireEmpty(
       throw new Error("SCHEMA_MISSING");
     }
 
-    // Never re-seed after the known imported accounts already exist.
-    const seeded = await client.query(
-      `select 1 from users
-       where lower(email) in ('bluesbrthr@gmail.com', 'cmebray@gmail.com')
-       limit 1`,
+    // Never re-seed after password bootstrap already ran.
+    const bootTbl = await client.query(
+      `select 1 from information_schema.tables
+       where table_schema = 'public' and table_name = 'password_bootstrap_v2_lock'`,
     );
-    if (seeded.rowCount) {
-      throw new Error("REFUSE_LOCKED");
+    if (bootTbl.rowCount) {
+      const boot = await client.query(
+        "select 1 from password_bootstrap_v2_lock limit 1",
+      );
+      if (boot.rowCount) throw new Error("REFUSE_LOCKED");
     }
 
     const countRes = await client.query<{ n: number }>(
