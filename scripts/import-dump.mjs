@@ -58,7 +58,7 @@ async function main() {
     /localhost|127\.0\.0\.1/i.test(url) || url.includes("sslmode=disable");
   const client = new pg.Client({
     connectionString: url,
-    ssl: local ? undefined : { rejectUnauthorized: false },
+    ssl: local ? undefined : true,
   });
   await client.connect();
 

@@ -105,7 +105,7 @@ function pgClient(connectionString: string): pg.Client {
     connectionString.includes("sslmode=disable");
   return new pg.Client({
     connectionString,
-    ssl: local ? undefined : { rejectUnauthorized: false },
+    ssl: local ? undefined : true,
   });
 }
 

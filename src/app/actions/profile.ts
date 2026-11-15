@@ -7,6 +7,7 @@ import { requireUser } from "@/lib/session";
 import { hashPassword, verifyPassword } from "@/lib/password";
 import { ALL_QUESTIONNAIRE } from "@/lib/profile-fields";
 import { destroyOtherSessions } from "@/lib/session";
+import { normalizeStoredHttpUrl } from "@/lib/url-safety";
 
 function s(fd: FormData, key: string): string {
   const v = fd.get(key);
@@ -64,10 +65,16 @@ export async function updateProfile(
       "shirt_size = $8",
       "profile_modified_at = now()",
     ];
+    const pictureRaw = s(formData, "pictureUrl");
+    const pictureUrl = pictureRaw ? normalizeStoredHttpUrl(pictureRaw) : "";
+    if (pictureRaw && !pictureUrl) {
+      return { error: "Picture URL must be a public http(s) link." };
+    }
+
     const params: unknown[] = [
       displayName,
       birthday,
-      s(formData, "pictureUrl"),
+      pictureUrl,
       s(formData, "caption"),
       s(formData, "height"),
       s(formData, "shoeSize"),

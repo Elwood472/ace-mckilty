@@ -144,8 +144,9 @@ export async function arePeopleRelated(
 /**
  * Find people for access requests (any signed-in user).
  * - Name: global substring match on display_name only (not email).
- * - Exact email: look up that one account (caller already knows the address).
- * Email addresses are not returned from name search results.
+ * - Exact email: only when viewer already shares list access / pending
+ *   request / co-ownership — never confirms arbitrary accounts exist.
+ * Email addresses are never returned unless the viewer already has access.
  */
 export async function searchPeople(
   viewerId: string,
@@ -186,6 +187,25 @@ export async function searchPeople(
         `${selectHit}
          where u.id <> $1
            and lower(u.email) = lower($2)
+           and (
+             exists(
+               select 1 from list_access a
+               join wish_lists l on l.id = a.list_id and l.list_type = 'personal'
+               join wish_list_owners o on o.list_id = l.id and o.user_id = u.id
+               where a.user_id = $1
+             )
+             or exists(
+               select 1 from list_access_requests r
+               join wish_lists l on l.id = r.list_id and l.list_type = 'personal'
+               join wish_list_owners o on o.list_id = l.id and o.user_id = u.id
+               where r.requester_id = $1 and r.status = 'pending'
+             )
+             or exists(
+               select 1 from wish_list_owners o1
+               join wish_list_owners o2 on o2.list_id = o1.list_id
+               where o1.user_id = $1 and o2.user_id = u.id
+             )
+           )
          limit 1`,
         [viewerId, q],
       )
@@ -201,8 +221,8 @@ export async function searchPeople(
   return rows.map((r) => ({
     id: r.id,
     display_name: r.display_name,
-    // Never leak emails via name search; only when already shared or exact email lookup.
-    email: r.has_access || byExactEmail ? r.email : null,
+    // Never leak emails unless the viewer already has list access.
+    email: r.has_access ? r.email : null,
     personal_list_id: r.personal_list_id,
     has_access: r.has_access,
     pending_request: r.pending_request,

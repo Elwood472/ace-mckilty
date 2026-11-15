@@ -23,8 +23,8 @@ function createPool(): pg.Pool {
   return new pg.Pool({
     connectionString: databaseUrl,
     max: 5,
-    // Hosted Postgres (Cursor / Neon / etc.) typically requires TLS.
-    ssl: local ? undefined : { rejectUnauthorized: false },
+    // Hosted Postgres typically requires TLS with normal cert verification.
+    ssl: local ? undefined : true,
   });
 }
 
