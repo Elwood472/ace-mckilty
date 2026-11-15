@@ -355,7 +355,7 @@ export async function searchPeopleAction(
   {
     id: string;
     display_name: string;
-    email: string;
+    email: string | null;
     personal_list_id: string | null;
     has_access: boolean;
     pending_request: boolean;

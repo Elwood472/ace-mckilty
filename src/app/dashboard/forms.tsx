@@ -49,7 +49,7 @@ export function InviteMyListForm({
 type Hit = {
   id: string;
   display_name: string;
-  email: string;
+  email: string | null;
   personal_list_id: string | null;
   has_access: boolean;
   pending_request: boolean;
@@ -67,13 +67,13 @@ export function SearchPeoplePanel({ csrf }: { csrf: string }) {
   return (
     <div>
       <label className="label" htmlFor="people-q">
-        Find someone (exact email, or name among people you already know)
+        Search by name (or exact email)
       </label>
       <input
         id="people-q"
         className="field"
         value={q}
-        placeholder="friend@example.com or a name you already know"
+        placeholder="Start typing a name, or enter a full email…"
         onChange={(e) => {
           const v = e.target.value;
           setQ(v);
@@ -87,8 +87,8 @@ export function SearchPeoplePanel({ csrf }: { csrf: string }) {
         }}
       />
       <p style={{ fontSize: 12, color: "#555", margin: "4px 0 0" }}>
-        New people: enter their full email. Name search only covers people you
-        already share a list with.
+        Anyone signed in can search names. Full profiles open after someone
+        shares their list with you.
       </p>
       {pending ? (
         <p style={{ fontSize: 12, color: "#555" }}>Searching…</p>
@@ -111,7 +111,9 @@ export function SearchPeoplePanel({ csrf }: { csrf: string }) {
               <Link href={`/profile/${h.id}`} style={{ fontWeight: 600 }}>
                 {h.display_name}
               </Link>
-              <div style={{ fontSize: 12, color: "#555" }}>{h.email}</div>
+              {h.email ? (
+                <div style={{ fontSize: 12, color: "#555" }}>{h.email}</div>
+              ) : null}
             </div>
             <div>
               {h.has_access && h.personal_list_id ? (

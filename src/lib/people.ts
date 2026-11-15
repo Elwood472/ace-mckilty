@@ -86,7 +86,8 @@ export async function listPeopleToBuyFor(
 export type PeopleSearchHit = {
   id: string;
   display_name: string;
-  email: string;
+  /** Only set when the viewer already has list access, or looked up by exact email. */
+  email: string | null;
   personal_list_id: string | null;
   has_access: boolean;
   pending_request: boolean;
@@ -97,6 +98,15 @@ const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 function looksLikeEmail(q: string): boolean {
   return EMAIL_RE.test(q);
 }
+
+type PeopleSearchRow = {
+  id: string;
+  display_name: string;
+  email: string;
+  personal_list_id: string | null;
+  has_access: boolean;
+  pending_request: boolean;
+};
 
 /** True when the two users already share a list relationship. */
 export async function arePeopleRelated(
@@ -139,10 +149,10 @@ export async function arePeopleRelated(
 }
 
 /**
- * Find people for access requests.
+ * Find people for access requests (any signed-in user).
+ * - Name: global substring match on display_name only (not email).
  * - Exact email: look up that one account (caller already knows the address).
- * - Otherwise: substring match on display name among people you already know.
- * Never runs a global substring search across every account / email.
+ * Email addresses are not returned from name search results.
  */
 export async function searchPeople(
   viewerId: string,
@@ -174,54 +184,31 @@ export async function searchPeople(
      from users u
   `;
 
-  if (looksLikeEmail(q)) {
-    const rows = await sql<PeopleSearchHit>(
-      `${selectHit}
-       where u.id <> $1
-         and lower(u.email) = lower($2)
-       limit 1`,
-      [viewerId, q],
-    );
-    return rows;
-  }
+  const byExactEmail = looksLikeEmail(q);
+  const rows = byExactEmail
+    ? await sql<PeopleSearchRow>(
+        `${selectHit}
+         where u.id <> $1
+           and lower(u.email) = lower($2)
+         limit 1`,
+        [viewerId, q],
+      )
+    : await sql<PeopleSearchRow>(
+        `${selectHit}
+         where u.id <> $1
+           and u.display_name ilike $2
+         order by u.display_name
+         limit 20`,
+        [viewerId, `%${q}%`],
+      );
 
-  // Name search only among people the viewer already has a relationship with.
-  const rows = await sql<PeopleSearchHit>(
-    `${selectHit}
-     where u.id <> $1
-       and u.display_name ilike $2
-       and (
-         exists (
-           select 1 from list_access a
-           join wish_lists l on l.id = a.list_id and l.list_type = 'personal'
-           join wish_list_owners o on o.list_id = l.id and o.user_id = u.id
-           where a.user_id = $1
-         )
-         or exists (
-           select 1 from list_access a
-           join wish_lists l on l.id = a.list_id and l.list_type = 'personal'
-           join wish_list_owners o on o.list_id = l.id and o.user_id = $1
-           where a.user_id = u.id
-         )
-         or exists (
-           select 1 from wish_list_owners a
-           join wish_list_owners b on b.list_id = a.list_id and b.user_id = u.id
-           where a.user_id = $1
-         )
-         or exists (
-           select 1 from list_access_requests r
-           join wish_lists l on l.id = r.list_id and l.list_type = 'personal'
-           join wish_list_owners o on o.list_id = l.id
-           where r.status = 'pending'
-             and (
-               (r.requester_id = $1 and o.user_id = u.id)
-               or (r.requester_id = u.id and o.user_id = $1)
-             )
-         )
-       )
-     order by u.display_name
-     limit 20`,
-    [viewerId, `%${q}%`],
-  );
-  return rows;
+  return rows.map((r) => ({
+    id: r.id,
+    display_name: r.display_name,
+    // Never leak emails via name search; only when already shared or exact email lookup.
+    email: r.has_access || byExactEmail ? r.email : null,
+    personal_list_id: r.personal_list_id,
+    has_access: r.has_access,
+    pending_request: r.pending_request,
+  }));
 }
