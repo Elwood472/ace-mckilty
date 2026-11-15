@@ -2,7 +2,7 @@ import { resolveSource } from "./source";
 
 export type AutofillResult = {
   title?: string;
-  /** Always USD when set. */
+  /** Amount in USD (assumed USD unless another currency was clearly indicated). */
   price?: string;
   imageUrl?: string;
   source?: string;
@@ -31,8 +31,8 @@ function decodeEntities(s: string): string {
     .replace(/&nbsp;/g, " ");
 }
 
-const SYMBOL_TO_CURRENCY: Record<string, string> = {
-  $: "USD",
+/** Symbols / prefixes that clearly are NOT plain US dollars. */
+const CLEAR_FOREIGN_SYMBOL: Record<string, string> = {
   "£": "GBP",
   "€": "EUR",
   "¥": "JPY",
@@ -46,9 +46,9 @@ const SYMBOL_TO_CURRENCY: Record<string, string> = {
   "NZ$": "NZD",
   "HK$": "HKD",
   "S$": "SGD",
+  "US$": "USD",
 };
 
-/** Rough fallbacks if live FX is unavailable (USD per 1 unit of currency). */
 const FALLBACK_USD_RATES: Record<string, number> = {
   USD: 1,
   EUR: 1.08,
@@ -72,23 +72,42 @@ const FALLBACK_USD_RATES: Record<string, number> = {
   RUB: 0.011,
 };
 
-function normalizeCurrency(raw: string | undefined): string {
-  if (!raw) return "USD";
-  const t = raw.trim().toUpperCase();
-  if (/^[A-Z]{3}$/.test(t)) return t;
-  if (SYMBOL_TO_CURRENCY[raw.trim()]) return SYMBOL_TO_CURRENCY[raw.trim()];
-  return "USD";
+/**
+ * Parse a currency hint. Bare "$" and missing/unknown → USD (no conversion).
+ * Only explicit foreign codes/symbols count as non-USD.
+ */
+function parseCurrencyHint(raw: string | undefined | null): {
+  code: string;
+  clearlyForeign: boolean;
+} {
+  if (raw == null || !String(raw).trim()) {
+    return { code: "USD", clearlyForeign: false };
+  }
+  const t = String(raw).trim();
+  const upper = t.toUpperCase();
+
+  if (upper === "USD" || upper === "US$" || t === "$") {
+    return { code: "USD", clearlyForeign: false };
+  }
+  if (/^[A-Z]{3}$/.test(upper)) {
+    return { code: upper, clearlyForeign: upper !== "USD" };
+  }
+  if (CLEAR_FOREIGN_SYMBOL[t]) {
+    const code = CLEAR_FOREIGN_SYMBOL[t];
+    return { code, clearlyForeign: code !== "USD" };
+  }
+  // Unrecognized → assume USD, do not convert
+  return { code: "USD", clearlyForeign: false };
 }
 
 async function toUsd(amount: number, currency: string): Promise<number> {
-  const code = normalizeCurrency(currency);
-  if (code === "USD") return amount;
+  if (currency === "USD") return amount;
 
   try {
     const ctrl = new AbortController();
     const timer = setTimeout(() => ctrl.abort(), 5000);
     const res = await fetch(
-      `https://api.frankfurter.app/latest?amount=${encodeURIComponent(String(amount))}&from=${encodeURIComponent(code)}&to=USD`,
+      `https://api.frankfurter.app/latest?amount=${encodeURIComponent(String(amount))}&from=${encodeURIComponent(currency)}&to=USD`,
       { signal: ctrl.signal },
     );
     clearTimeout(timer);
@@ -97,15 +116,19 @@ async function toUsd(amount: number, currency: string): Promise<number> {
       if (typeof data.rates?.USD === "number") return data.rates.USD;
     }
   } catch {
-    // fall through to static rates
+    // fall through
   }
 
-  const rate = FALLBACK_USD_RATES[code];
-  if (rate == null) return amount; // unknown — leave numeric as-is
+  const rate = FALLBACK_USD_RATES[currency];
+  if (rate == null) return amount;
   return amount * rate;
 }
 
-type ScrapedPrice = { amount: number; currency: string };
+type ScrapedPrice = {
+  amount: number;
+  currency: string;
+  clearlyForeign: boolean;
+};
 
 function scrapePrice(html: string): ScrapedPrice | null {
   const currencyMeta =
@@ -116,19 +139,17 @@ function scrapePrice(html: string): ScrapedPrice | null {
   const amountMeta =
     metaContent(html, "product:price:amount") ||
     metaContent(html, "og:price:amount") ||
-    html.match(/itemprop=["']price["'][^>]*content=["']([0-9.]+)["']/i)?.[1] ||
-    html.match(
-      /itemprop=["']priceCurrency["'][^>]*>[\s\S]*?itemprop=["']price["'][^>]*content=["']([0-9.]+)["']/i,
-    )?.[1];
+    html.match(/itemprop=["']price["'][^>]*content=["']([0-9.]+)["']/i)?.[1];
 
   if (amountMeta && !Number.isNaN(Number(amountMeta))) {
+    const cur = parseCurrencyHint(currencyMeta);
     return {
       amount: Number(amountMeta),
-      currency: normalizeCurrency(currencyMeta),
+      currency: cur.code,
+      clearlyForeign: cur.clearlyForeign,
     };
   }
 
-  // JSON-LD offers
   const jsonLdBlocks = [
     ...html.matchAll(
       /<script[^>]+type=["']application\/ld\+json["'][^>]*>([\s\S]*?)<\/script>/gi,
@@ -140,11 +161,11 @@ function scrapePrice(html: string): ScrapedPrice | null {
       const found = findOfferPrice(data);
       if (found) return found;
     } catch {
-      // ignore bad JSON-LD
+      // ignore
     }
   }
 
-  // Visible money with symbol
+  // Only match when a currency symbol/prefix is present — bare numbers are ignored here
   const money = html.match(
     /(?:(US\$|CA\$|AU\$|NZ\$|HK\$|S\$|A\$|C\$)|([€£¥₹₽₩$]))\s*([0-9]{1,3}(?:,[0-9]{3})*(?:\.[0-9]{2})?|[0-9]+(?:\.[0-9]{2})?)/,
   );
@@ -152,7 +173,12 @@ function scrapePrice(html: string): ScrapedPrice | null {
     const sym = money[1] || money[2] || "$";
     const amount = Number(money[3].replace(/,/g, ""));
     if (!Number.isNaN(amount)) {
-      return { amount, currency: normalizeCurrency(sym) };
+      const cur = parseCurrencyHint(sym);
+      return {
+        amount,
+        currency: cur.code,
+        clearlyForeign: cur.clearlyForeign,
+      };
     }
   }
 
@@ -177,11 +203,13 @@ function findOfferPrice(node: unknown): ScrapedPrice | null {
     >;
     const price = o?.price ?? o?.lowPrice;
     if (price != null && !Number.isNaN(Number(price))) {
+      const cur = parseCurrencyHint(
+        typeof o.priceCurrency === "string" ? o.priceCurrency : undefined,
+      );
       return {
         amount: Number(price),
-        currency: normalizeCurrency(
-          typeof o.priceCurrency === "string" ? o.priceCurrency : "USD",
-        ),
+        currency: cur.code,
+        clearlyForeign: cur.clearlyForeign,
       };
     }
   }
@@ -239,10 +267,13 @@ export async function autofillFromGiftUrl(url: string): Promise<AutofillResult> 
 
     const scraped = scrapePrice(html);
     if (scraped) {
-      const usd = await toUsd(scraped.amount, scraped.currency);
-      out.price = usd.toFixed(2);
-      if (normalizeCurrency(scraped.currency) !== "USD") {
-        out.warning = `Price converted to USD from ${normalizeCurrency(scraped.currency)}.`;
+      if (scraped.clearlyForeign) {
+        const usd = await toUsd(scraped.amount, scraped.currency);
+        out.price = usd.toFixed(2);
+        out.warning = `Price converted to USD from ${scraped.currency}.`;
+      } else {
+        // Bare number / $ / USD — use as-is (assumed USD)
+        out.price = scraped.amount.toFixed(2);
       }
     }
 

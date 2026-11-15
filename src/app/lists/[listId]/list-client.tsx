@@ -423,7 +423,7 @@ export function AddItemForm({
       setAutofillMsg(
         result.warning ||
           (result.title || result.price
-            ? "Filled from link (price in USD) — edit anything that looks off."
+            ? "Filled from link — edit anything that looks off."
             : "No fields found — edit manually."),
       );
     } finally {
