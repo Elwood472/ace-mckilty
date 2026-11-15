@@ -14,9 +14,13 @@ export function totpUri(opts: {
   secret: string;
   accountName: string;
 }): string {
+  // Duo Mobile labels non-Duo issuers as "Organization Third Party" and
+  // will not show our issuer name on that line. Put the brand in `label`
+  // so the account name (second line) still reads clearly as Ace McKilty.
+  const label = `${ISSUER} (${opts.accountName})`;
   const totp = new TOTP({
     issuer: ISSUER,
-    label: opts.accountName,
+    label,
     algorithm: "SHA1",
     digits: 6,
     period: 30,
