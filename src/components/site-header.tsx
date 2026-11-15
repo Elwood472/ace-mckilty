@@ -81,6 +81,8 @@ export async function SiteHeader({
                   {" · "}
                   <Link href="/dashboard">Home</Link>
                   {" · "}
+                  <Link href="/profile/security">Security</Link>
+                  {" · "}
                   <Link href="/faq">FAQ</Link>
                   {" · "}
                   <form action={signOut} style={{ display: "inline" }}>

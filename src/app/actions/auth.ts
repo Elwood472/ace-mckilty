@@ -116,6 +116,7 @@ export async function signIn(
 
   let nextPath = "/dashboard";
   let ok = false;
+  let needsTwoFactor = false;
   try {
     const ip = await getClientIp();
     const failKey = signInFailKey(ip);
@@ -162,20 +163,42 @@ export async function signIn(
     }
 
     await clearRateLimit(failKey);
-    await createSession(user.id);
-    const named = await sql<{ display_name: string }>(
-      "select display_name from users where id = $1",
-      [user.id],
-    );
-    const { ensurePersonalList } = await import("@/lib/lists");
-    await ensurePersonalList(user.id, named[0]?.display_name ?? "My");
     nextPath = safeInternalPath(formString(formData, "next"));
-    ok = true;
+
+    const {
+      getUserTwoFactor,
+      startLoginTwoFactor,
+      userNeedsTwoFactor,
+    } = await import("@/lib/two-factor");
+    const flags = await getUserTwoFactor(user.id);
+    if (flags && userNeedsTwoFactor(flags)) {
+      const emailRow = await sql<{ email: string }>(
+        "select email from users where id = $1",
+        [user.id],
+      );
+      await startLoginTwoFactor({
+        userId: user.id,
+        nextPath,
+        email: emailRow[0]?.email ?? email,
+        flags,
+      });
+      needsTwoFactor = true;
+    } else {
+      await createSession(user.id);
+      const named = await sql<{ display_name: string }>(
+        "select display_name from users where id = $1",
+        [user.id],
+      );
+      const { ensurePersonalList } = await import("@/lib/lists");
+      await ensurePersonalList(user.id, named[0]?.display_name ?? "My");
+      ok = true;
+    }
   } catch (e) {
     console.error("[auth] signIn failed", e);
     return { error: "Could not sign in. Try again in a moment." };
   }
 
+  if (needsTwoFactor) redirect("/login/verify");
   if (ok) redirect(nextPath);
   return { error: "Could not sign in. Try again in a moment." };
 }

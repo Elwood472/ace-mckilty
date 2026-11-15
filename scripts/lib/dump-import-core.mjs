@@ -27,7 +27,12 @@ export const TABLE_ORDER = [
   "auth_rate_limits",
 ];
 
-export const EPHEMERAL = new Set(["sessions", "auth_rate_limits"]);
+export const EPHEMERAL = new Set([
+  "sessions",
+  "auth_rate_limits",
+  "auth_challenges",
+  "totp_setup",
+]);
 
 export function quoteIdent(name) {
   return `"${String(name).replace(/"/g, '""')}"`;

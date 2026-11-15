@@ -25,7 +25,12 @@ const TABLE_ORDER = [
   "auth_rate_limits",
 ] as const;
 
-const EPHEMERAL = new Set(["sessions", "auth_rate_limits"]);
+const EPHEMERAL = new Set([
+  "sessions",
+  "auth_rate_limits",
+  "auth_challenges",
+  "totp_setup",
+]);
 
 /** Max dump JSON size (paste or file). */
 export const MAX_DUMP_BYTES = 1_500_000;
