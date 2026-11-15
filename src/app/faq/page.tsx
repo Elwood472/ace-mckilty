@@ -41,11 +41,13 @@ export default async function FaqPage() {
           (for example Amazon). Source is saved on each item and inferred from
           the URL when possible. There is no saved budget feature.
         </p>
-        <h3>Invites</h3>
+        <h3>Invites &amp; access-request email</h3>
         <p>
-          Email an invite link from home or from a list&apos;s invite panel. Live
-          email needs the <code>RESEND_API_KEY</code> secret; otherwise the invite
-          is still created and the invite link is shown on screen.
+          Email an invite link from home or from a list&apos;s invite panel. When
+          someone requests access to your list, owners get an email too. Both use
+          the same Resend path when <code>RESEND_API_KEY</code> is set; otherwise
+          mail is stubbed in the server log and the invite link / request still
+          works on screen.
         </p>
         <h3>Show to others starting</h3>
         <p>

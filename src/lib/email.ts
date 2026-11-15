@@ -24,7 +24,7 @@ export async function sendEmail(opts: {
 
   if (!apiKey) {
     console.info(
-      "[email:stub] RESEND_API_KEY unset — invite not emailed.\n" +
+      "[email:stub] RESEND_API_KEY unset — email not sent.\n" +
         `  to: ${opts.to}\n  subject: ${opts.subject}\n  body:\n${opts.text}\n` +
         "  Bind secret RESEND_API_KEY (and optional EMAIL_FROM) for live mail.",
     );
@@ -93,6 +93,31 @@ export function inviteEmailBody(opts: {
         Accept invite
       </a></p>
       <p style="color:#555;font-size:12px">Or paste this invite link:<br>${escapeHtml(opts.inviteUrl)}</p>
+    </div>`;
+  return { subject, text, html };
+}
+
+/** Notify list owner(s) that someone requested access — same sendEmail/Resend path as invites. */
+export function accessRequestEmailBody(opts: {
+  listTitle: string;
+  requesterName: string;
+  requesterEmail: string;
+  reviewUrl: string;
+}): { subject: string; text: string; html: string } {
+  const subject = `${opts.requesterName} requested access to ${opts.listTitle}`;
+  const text =
+    `${opts.requesterName} (${opts.requesterEmail}) requested access to “${opts.listTitle}” on Ace McKilty Gift Registry.\n\n` +
+    `Review and approve or deny the request:\n${opts.reviewUrl}\n`;
+  const html = `
+    <div style="font-family:Arial,Helvetica,sans-serif;font-size:14px;color:#111">
+      <p><b>${escapeHtml(opts.requesterName)}</b>
+      (${escapeHtml(opts.requesterEmail)}) requested access to
+      “${escapeHtml(opts.listTitle)}” on Ace McKilty Gift Registry.</p>
+      <p><a href="${escapeHtml(opts.reviewUrl)}"
+        style="display:inline-block;background:#000080;color:#fff;padding:10px 16px;text-decoration:none;font-weight:700">
+        Review request
+      </a></p>
+      <p style="color:#555;font-size:12px">Or open:<br>${escapeHtml(opts.reviewUrl)}</p>
     </div>`;
   return { subject, text, html };
 }

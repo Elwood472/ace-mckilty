@@ -269,37 +269,7 @@ a.btn:hover {
   background: var(--restricted-soft);
 }
 
-.profile-table td {
-  border: 1px solid #ddd;
-  padding: 6px 8px;
-}
-
-.profile-table .sec-head {
-  background: var(--navy);
-  color: #fff;
-  font-weight: 700;
-  font-size: 16px;
-}
-
-.profile-table .alt-a {
-  background: var(--row-a);
-}
-
-.profile-table .alt-b {
-  background: var(--row-b);
-}
-
-.profile-table .size-head {
-  background: var(--size-head);
-}
-
-.profile-table .size-a {
-  background: var(--size-a);
-}
-
-.profile-table .size-b {
-  background: var(--size-b);
-}
+/* Legacy colored profile-table rows removed — view profile uses tabbed panels. */
 
 .step-label {
   position: absolute;

@@ -171,28 +171,93 @@ export async function requestListAccess(
       return { ok: "You already have access." };
     }
 
-    const owners = await sql(
+    const amOwner = await sql(
       "select 1 from wish_list_owners where list_id = $1 and user_id = $2",
       [listId, user.id],
     );
-    if (owners.length) return { error: "You already own this list." };
+    if (amOwner.length) return { error: "You already own this list." };
 
     if (!(await checkRateLimit(`access-req:${user.id}`))) {
       return { error: "Too many requests. Try again later." };
+    }
+
+    const alreadyPending = await sql(
+      `select 1 from list_access_requests
+       where list_id = $1 and requester_id = $2 and status = 'pending'`,
+      [listId, user.id],
+    );
+    if (alreadyPending.length) {
+      return { ok: "Access request already pending." };
     }
 
     await sql(
       `insert into list_access_requests (list_id, requester_id, status)
        values ($1, $2, 'pending')
        on conflict (list_id, requester_id) do update
-         set status = 'pending', decided_at = null, created_at = now()
-         where list_access_requests.status <> 'pending'`,
+         set status = 'pending', decided_at = null, created_at = now()`,
       [listId, user.id],
     );
+
+    // Same Resend path as invites when RESEND_API_KEY is set (else stub).
+    const ownerRecipients = await sql<{ email: string; display_name: string }>(
+      `select u.email, u.display_name
+       from wish_list_owners o
+       join users u on u.id = o.user_id
+       where o.list_id = $1`,
+      [listId],
+    );
+    const listMeta = await sql<{ title: string }>(
+      "select title from wish_lists where id = $1",
+      [listId],
+    );
+    const { accessRequestEmailBody, sendEmail } = await import("@/lib/email");
+    const base = inviteBaseUrl();
+    const reviewPath = `/lists/${listId}`;
+    const reviewUrl = base
+      ? `${base.replace(/\/$/, "")}${reviewPath}`
+      : `(open in the app) ${reviewPath}`;
+    const mail = accessRequestEmailBody({
+      listTitle: listMeta[0]?.title ?? "a wish list",
+      requesterName: user.display_name,
+      requesterEmail: user.email,
+      reviewUrl,
+    });
+    let emailed = 0;
+    let stubbed = false;
+    let mailError: string | undefined;
+    for (const owner of ownerRecipients) {
+      if (owner.email.toLowerCase() === user.email.toLowerCase()) continue;
+      const sent = await sendEmail({
+        to: owner.email,
+        subject: mail.subject,
+        text: mail.text,
+        html: mail.html,
+      });
+      if (!sent.ok) {
+        mailError = sent.error;
+        continue;
+      }
+      if (sent.mode === "stub") stubbed = true;
+      else emailed += 1;
+    }
 
     revalidatePath("/dashboard");
     revalidatePath(`/lists/${listId}`);
     if (ownerUserId) revalidatePath(`/profile/${ownerUserId}`);
+
+    if (mailError) {
+      return {
+        ok: `Access requested. Owner email failed: ${mailError}`,
+      };
+    }
+    if (stubbed) {
+      return {
+        ok: "Access requested. Owner email stubbed (set RESEND_API_KEY to send).",
+      };
+    }
+    if (emailed > 0) {
+      return { ok: "Access requested. Owner notified by email." };
+    }
     return { ok: "Access requested. Waiting for approval." };
   } catch (e) {
     if (e instanceof Error && e.message === "UNAUTHORIZED") {
