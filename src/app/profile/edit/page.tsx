@@ -34,8 +34,7 @@ export default async function EditProfilePage() {
         </h1>
         <p style={{ color: "#555", maxWidth: 560 }}>
           Keep your birthday up to date so friends see you in the right order on
-          the home page. The questionnaire below matches the old Ace McKilty
-          profile form.
+          home. Use the tabs for each section — Save stays at the top.
         </p>
         <ProfileEditForm csrf={csrf} initial={rows[0]} email={user.email} />
       </main>
