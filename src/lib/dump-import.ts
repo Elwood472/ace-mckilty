@@ -99,6 +99,16 @@ function databaseUrl(): string {
   );
 }
 
+function pgClient(connectionString: string): pg.Client {
+  const local =
+    /localhost|127\.0\.0\.1/i.test(connectionString) ||
+    connectionString.includes("sslmode=disable");
+  return new pg.Client({
+    connectionString,
+    ssl: local ? undefined : { rejectUnauthorized: false },
+  });
+}
+
 export async function countUsers(): Promise<number | null> {
   const url = databaseUrl();
   if (!url) {
@@ -107,7 +117,7 @@ export async function countUsers(): Promise<number | null> {
     const rows = await sql<{ n: number }>("select count(*)::int as n from users");
     return rows[0]?.n ?? 0;
   }
-  const client = new pg.Client({ connectionString: url });
+  const client = pgClient(url);
   await client.connect();
   try {
     const exists = await client.query(
@@ -136,7 +146,7 @@ export async function importDumpRequireEmpty(
     throw new Error("NO_DATABASE_URL");
   }
 
-  const client = new pg.Client({ connectionString: url });
+  const client = pgClient(url);
   await client.connect();
   const imported: Record<string, number> = {};
   try {

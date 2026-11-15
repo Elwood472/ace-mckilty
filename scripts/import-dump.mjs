@@ -54,7 +54,12 @@ async function main() {
 
   const dump = JSON.parse(await readFile(inPath, "utf8"));
 
-  const client = new pg.Client({ connectionString: url });
+  const local =
+    /localhost|127\.0\.0\.1/i.test(url) || url.includes("sslmode=disable");
+  const client = new pg.Client({
+    connectionString: url,
+    ssl: local ? undefined : { rejectUnauthorized: false },
+  });
   await client.connect();
 
   try {

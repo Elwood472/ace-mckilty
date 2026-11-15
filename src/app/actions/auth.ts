@@ -1,6 +1,7 @@
 "use server";
 
 import { redirect } from "next/navigation";
+import { isRedirectError } from "next/dist/client/components/redirect-error";
 import { z } from "zod";
 import { sql } from "@/lib/db";
 import { hashPassword, verifyPassword } from "@/lib/password";
@@ -34,57 +35,66 @@ export async function signUp(
     return { error: "Invalid request. Refresh and try again." };
   }
 
-  const ip = await getClientIp();
-  const human = await assertHuman(formData, ip);
-  if (!human.ok) return { error: human.error };
+  try {
+    const ip = await getClientIp();
+    const human = await assertHuman(formData, ip);
+    if (!human.ok) return { error: human.error };
 
-  const email = formString(formData, "email").toLowerCase();
-  const password = formString(formData, "password");
-  const displayName = formString(formData, "displayName");
+    const email = formString(formData, "email").toLowerCase();
+    const password = formString(formData, "password");
+    const displayName = formString(formData, "displayName");
 
-  const parsed = credentials.safeParse({ email, password, displayName });
-  if (!parsed.success || !displayName) {
-    return { error: "Enter a valid email, name, and password (8+ characters)." };
+    const parsed = credentials.safeParse({ email, password, displayName });
+    if (!parsed.success || !displayName) {
+      return {
+        error: "Enter a valid email, name, and password (8+ characters).",
+      };
+    }
+
+    // Cap account creation per IP and per email (bcrypt is expensive).
+    // No low global cap — that lets one attacker block every new signup.
+    if (
+      !(await checkRateLimit(`signup-ip:${ip}`, {
+        maxHits: 5,
+        windowMs: 60 * 60 * 1000,
+      }))
+    ) {
+      return { error: "Too many attempts. Try again later." };
+    }
+    if (
+      !(await checkRateLimit(`signup:${email}`, {
+        maxHits: 5,
+        windowMs: 60 * 60 * 1000,
+      }))
+    ) {
+      return { error: "Too many attempts. Try again later." };
+    }
+
+    const existing = await sql("select 1 from users where email = $1", [email]);
+    if (existing.length) {
+      // Avoid account-enumeration: same message as other soft failures.
+      await hashPassword(password);
+      return {
+        error:
+          "Could not create account. Try signing in, or use a different email.",
+      };
+    }
+
+    const passwordHash = await hashPassword(password);
+    const rows = await sql<{ id: string }>(
+      `insert into users (email, password_hash, display_name)
+       values ($1, $2, $3) returning id`,
+      [email, passwordHash, displayName],
+    );
+    const { ensurePersonalList } = await import("@/lib/lists");
+    await ensurePersonalList(rows[0].id, displayName);
+    await createSession(rows[0].id);
+    redirect("/dashboard");
+  } catch (e) {
+    if (isRedirectError(e)) throw e;
+    console.error("[auth] signUp failed", e);
+    return { error: "Could not create account. Try again in a moment." };
   }
-
-  // Cap account creation per IP and per email (bcrypt is expensive).
-  // No low global cap — that lets one attacker block every new signup.
-  if (
-    !(await checkRateLimit(`signup-ip:${ip}`, {
-      maxHits: 5,
-      windowMs: 60 * 60 * 1000,
-    }))
-  ) {
-    return { error: "Too many attempts. Try again later." };
-  }
-  if (
-    !(await checkRateLimit(`signup:${email}`, {
-      maxHits: 5,
-      windowMs: 60 * 60 * 1000,
-    }))
-  ) {
-    return { error: "Too many attempts. Try again later." };
-  }
-
-  const existing = await sql("select 1 from users where email = $1", [email]);
-  if (existing.length) {
-    // Avoid account-enumeration: same message as other soft failures.
-    await hashPassword(password);
-    return {
-      error: "Could not create account. Try signing in, or use a different email.",
-    };
-  }
-
-  const passwordHash = await hashPassword(password);
-  const rows = await sql<{ id: string }>(
-    `insert into users (email, password_hash, display_name)
-     values ($1, $2, $3) returning id`,
-    [email, passwordHash, displayName],
-  );
-  const { ensurePersonalList } = await import("@/lib/lists");
-  await ensurePersonalList(rows[0].id, displayName);
-  await createSession(rows[0].id);
-  redirect("/dashboard");
 }
 
 export async function signIn(
@@ -97,54 +107,60 @@ export async function signIn(
     return { error: "Invalid request. Refresh and try again." };
   }
 
-  const ip = await getClientIp();
-  const human = await assertHuman(formData, ip);
-  if (!human.ok) return { error: human.error };
+  try {
+    const ip = await getClientIp();
+    const human = await assertHuman(formData, ip);
+    if (!human.ok) return { error: human.error };
 
-  const email = formString(formData, "email").toLowerCase();
-  const password = formString(formData, "password");
-  const parsed = credentials.safeParse({ email, password });
-  if (!parsed.success) {
-    return { error: "Enter a valid email and password." };
-  }
+    const email = formString(formData, "email").toLowerCase();
+    const password = formString(formData, "password");
+    const parsed = credentials.safeParse({ email, password });
+    if (!parsed.success) {
+      return { error: "Enter a valid email and password." };
+    }
 
-  // Rate-limit by IP (and IP+email), never by email alone — otherwise an
-  // attacker who knows an address can lock the real owner out.
-  if (
-    !(await checkRateLimit(`signin-ip:${ip}`, {
-      maxHits: 30,
-      windowMs: 15 * 60 * 1000,
-    }))
-  ) {
-    return { error: "Too many attempts. Try again later." };
-  }
-  if (
-    !(await checkRateLimit(`signin-ip-email:${ip}:${email}`, {
-      maxHits: 12,
-      windowMs: 15 * 60 * 1000,
-    }))
-  ) {
-    return { error: "Too many attempts. Try again later." };
-  }
+    // Rate-limit by IP (and IP+email), never by email alone — otherwise an
+    // attacker who knows an address can lock the real owner out.
+    if (
+      !(await checkRateLimit(`signin-ip:${ip}`, {
+        maxHits: 30,
+        windowMs: 15 * 60 * 1000,
+      }))
+    ) {
+      return { error: "Too many attempts. Try again later." };
+    }
+    if (
+      !(await checkRateLimit(`signin-ip-email:${ip}:${email}`, {
+        maxHits: 12,
+        windowMs: 15 * 60 * 1000,
+      }))
+    ) {
+      return { error: "Too many attempts. Try again later." };
+    }
 
-  const rows = await sql<{ id: string; password_hash: string }>(
-    "select id, password_hash from users where email = $1",
-    [email],
-  );
-  const user = rows[0];
-  if (!user || !(await verifyPassword(password, user.password_hash))) {
-    return { error: "Email or password is incorrect." };
-  }
+    const rows = await sql<{ id: string; password_hash: string }>(
+      "select id, password_hash from users where email = $1",
+      [email],
+    );
+    const user = rows[0];
+    if (!user || !(await verifyPassword(password, user.password_hash))) {
+      return { error: "Email or password is incorrect." };
+    }
 
-  await createSession(user.id);
-  const named = await sql<{ display_name: string }>(
-    "select display_name from users where id = $1",
-    [user.id],
-  );
-  const { ensurePersonalList } = await import("@/lib/lists");
-  await ensurePersonalList(user.id, named[0]?.display_name ?? "My");
-  const next = formString(formData, "next");
-  redirect(safeInternalPath(next));
+    await createSession(user.id);
+    const named = await sql<{ display_name: string }>(
+      "select display_name from users where id = $1",
+      [user.id],
+    );
+    const { ensurePersonalList } = await import("@/lib/lists");
+    await ensurePersonalList(user.id, named[0]?.display_name ?? "My");
+    const next = formString(formData, "next");
+    redirect(safeInternalPath(next));
+  } catch (e) {
+    if (isRedirectError(e)) throw e;
+    console.error("[auth] signIn failed", e);
+    return { error: "Could not sign in. Try again in a moment." };
+  }
 }
 
 export async function signOut(): Promise<void> {

@@ -13,25 +13,97 @@ type SqlFn = <T = Record<string, unknown>>(
 
 const globalForDb = globalThis as unknown as {
   __giftRegistryPglite?: Promise<PGlite>;
+  __giftRegistryPgReady?: Promise<void>;
 };
+
+function createPool(): pg.Pool {
+  const local =
+    /localhost|127\.0\.0\.1/i.test(databaseUrl) ||
+    databaseUrl.includes("sslmode=disable");
+  return new pg.Pool({
+    connectionString: databaseUrl,
+    max: 5,
+    // Hosted Postgres (Cursor / Neon / etc.) typically requires TLS.
+    ssl: local ? undefined : { rejectUnauthorized: false },
+  });
+}
+
+async function getPool(): Promise<pg.Pool> {
+  pool ??= createPool();
+  await ensurePostgresMigrations(pool);
+  return pool;
+}
+
+/** Apply SQL migrations once per process (same tracking as scripts/migrate.mjs). */
+async function ensurePostgresMigrations(db: pg.Pool): Promise<void> {
+  if (!globalForDb.__giftRegistryPgReady) {
+    globalForDb.__giftRegistryPgReady = (async () => {
+      const client = await db.connect();
+      try {
+        await client.query("create extension if not exists pgcrypto");
+        await client.query(
+          `create table if not exists schema_migrations (
+             name text primary key,
+             applied_at timestamptz not null default now()
+           )`,
+        );
+        const done = new Set(
+          (
+            await client.query<{ name: string }>(
+              "select name from schema_migrations",
+            )
+          ).rows.map((r) => r.name),
+        );
+        const dir = path.join(process.cwd(), "migrations");
+        const files = (await readdir(dir).catch(() => []))
+          .filter((f) => f.endsWith(".sql"))
+          .sort();
+        for (const file of files) {
+          if (done.has(file)) continue;
+          await client.query("begin");
+          try {
+            await client.query(await readFile(path.join(dir, file), "utf8"));
+            await client.query(
+              "insert into schema_migrations (name) values ($1)",
+              [file],
+            );
+            await client.query("commit");
+            console.info(`[db] applied migration ${file}`);
+          } catch (error) {
+            await client.query("rollback");
+            throw error;
+          }
+        }
+      } finally {
+        client.release();
+      }
+    })().catch((error: unknown) => {
+      globalForDb.__giftRegistryPgReady = undefined;
+      throw error;
+    });
+  }
+  await globalForDb.__giftRegistryPgReady;
+}
 
 export async function sql<T = Record<string, unknown>>(
   text: string,
   params: unknown[] = [],
 ): Promise<T[]> {
   if (databaseUrl !== "") {
-    pool ??= new pg.Pool({ connectionString: databaseUrl, max: 5 });
-    return (await pool.query(text, params)).rows as T[];
+    const db = await getPool();
+    return (await db.query(text, params)).rows as T[];
   }
   const db = await getLocal();
   return (await db.query<T>(text, params)).rows;
 }
 
 /** Run multiple statements in one transaction (Postgres or PGlite). */
-export async function withTransaction<T>(fn: (query: SqlFn) => Promise<T>): Promise<T> {
+export async function withTransaction<T>(
+  fn: (query: SqlFn) => Promise<T>,
+): Promise<T> {
   if (databaseUrl !== "") {
-    pool ??= new pg.Pool({ connectionString: databaseUrl, max: 5 });
-    const client = await pool.connect();
+    const db = await getPool();
+    const client = await db.connect();
     try {
       await client.query("begin");
       const query: SqlFn = async <R = Record<string, unknown>>(
