@@ -1,7 +1,6 @@
 "use server";
 
 import { redirect } from "next/navigation";
-import { isRedirectError } from "next/dist/client/components/redirect-error";
 import { z } from "zod";
 import { sql } from "@/lib/db";
 import { hashPassword, verifyPassword } from "@/lib/password";
@@ -35,6 +34,7 @@ export async function signUp(
     return { error: "Invalid request. Refresh and try again." };
   }
 
+  let userId: string | null = null;
   try {
     const ip = await getClientIp();
     const human = await assertHuman(formData, ip);
@@ -89,12 +89,14 @@ export async function signUp(
     const { ensurePersonalList } = await import("@/lib/lists");
     await ensurePersonalList(rows[0].id, displayName);
     await createSession(rows[0].id);
-    redirect("/dashboard");
+    userId = rows[0].id;
   } catch (e) {
-    if (isRedirectError(e)) throw e;
     console.error("[auth] signUp failed", e);
     return { error: "Could not create account. Try again in a moment." };
   }
+
+  if (userId) redirect("/dashboard");
+  return { error: "Could not create account. Try again in a moment." };
 }
 
 export async function signIn(
@@ -107,6 +109,8 @@ export async function signIn(
     return { error: "Invalid request. Refresh and try again." };
   }
 
+  let nextPath = "/dashboard";
+  let ok = false;
   try {
     const ip = await getClientIp();
     const human = await assertHuman(formData, ip);
@@ -154,13 +158,15 @@ export async function signIn(
     );
     const { ensurePersonalList } = await import("@/lib/lists");
     await ensurePersonalList(user.id, named[0]?.display_name ?? "My");
-    const next = formString(formData, "next");
-    redirect(safeInternalPath(next));
+    nextPath = safeInternalPath(formString(formData, "next"));
+    ok = true;
   } catch (e) {
-    if (isRedirectError(e)) throw e;
     console.error("[auth] signIn failed", e);
     return { error: "Could not sign in. Try again in a moment." };
   }
+
+  if (ok) redirect(nextPath);
+  return { error: "Could not sign in. Try again in a moment." };
 }
 
 export async function signOut(): Promise<void> {

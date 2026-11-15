@@ -54,12 +54,13 @@ async function main() {
 
   const dump = JSON.parse(await readFile(inPath, "utf8"));
 
+  let conn = url;
   const local =
-    /localhost|127\.0\.0\.1/i.test(url) || url.includes("sslmode=disable");
-  const client = new pg.Client({
-    connectionString: url,
-    ssl: local ? undefined : true,
-  });
+    /localhost|127\.0\.0\.1/i.test(conn) || conn.includes("sslmode=disable");
+  if (!local && !/[?&]sslmode=/i.test(conn)) {
+    conn += (conn.includes("?") ? "&" : "?") + "sslmode=verify-full";
+  }
+  const client = new pg.Client({ connectionString: conn });
   await client.connect();
 
   try {
