@@ -1,8 +1,16 @@
+import "server-only";
+
 import { lookup } from "node:dns/promises";
 import http from "node:http";
 import https from "node:https";
 import { isIP } from "node:net";
 import type { IncomingMessage } from "node:http";
+
+export {
+  normalizeStoredHttpUrl,
+  safeExternalHref,
+  safeInternalPath,
+} from "./url-safety";
 
 const BLOCKED_HOSTNAMES = new Set([
   "localhost",
@@ -71,46 +79,6 @@ export function isBlockedIp(ip: string): boolean {
   if (version === 4) return isBlockedIpv4(ip);
   if (version === 6) return isBlockedIpv6(ip);
   return true;
-}
-
-export function safeExternalHref(
-  raw: string | null | undefined,
-): string | null {
-  if (!raw) return null;
-  const trimmed = raw.trim();
-  if (!trimmed) return null;
-  try {
-    const u = new URL(trimmed);
-    if (u.protocol !== "http:" && u.protocol !== "https:") return null;
-    if (!u.hostname) return null;
-    return u.toString();
-  } catch {
-    return null;
-  }
-}
-
-export function normalizeStoredHttpUrl(raw: string): string {
-  return safeExternalHref(raw) ?? "";
-}
-
-export function safeInternalPath(
-  raw: string | null | undefined,
-  fallback = "/dashboard",
-): string {
-  if (!raw) return fallback;
-  const next = raw.trim();
-  if (!next.startsWith("/")) return fallback;
-  if (next.startsWith("//") || next.startsWith("/\\")) return fallback;
-  if (next.includes("\\") || next.includes("://")) return fallback;
-  if (/[\0-\x1f\x7f]/.test(next)) return fallback;
-  try {
-    const u = new URL(next, "https://example.invalid");
-    if (u.origin !== "https://example.invalid") return fallback;
-    if (u.username || u.password) return fallback;
-  } catch {
-    return fallback;
-  }
-  return next;
 }
 
 function hostnameOf(u: URL): string {

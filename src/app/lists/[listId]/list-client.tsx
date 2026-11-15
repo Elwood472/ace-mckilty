@@ -15,7 +15,7 @@ import type { Item } from "@/lib/types";
 import { CsrfField } from "@/components/csrf-field";
 import { Flash } from "@/components/flash";
 import type { ItemView, SortDir, SortKey } from "@/lib/types";
-import { safeExternalHref } from "@/lib/urls";
+import { safeExternalHref } from "@/lib/url-safety";
 
 const initial: ActionState = {};
 
