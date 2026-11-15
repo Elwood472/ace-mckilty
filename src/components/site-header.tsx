@@ -1,7 +1,10 @@
 import Link from "next/link";
 import type { User } from "@/lib/types";
 import { signOut } from "@/app/actions/auth";
-import { shouldShowImportLink } from "@/lib/import-nav";
+import {
+  shouldShowImportLink,
+  shouldShowRecoverLink,
+} from "@/lib/import-nav";
 
 /**
  * Gift Registry chrome under Ace McKilty.
@@ -17,6 +20,7 @@ export async function SiteHeader({
 }) {
   const giftsHome = user ? "/dashboard" : "/gifts";
   const showImport = user ? await shouldShowImportLink(user.id) : false;
+  const showRecover = shouldShowRecoverLink();
 
   return (
     <header className="site-header">
@@ -87,6 +91,12 @@ export async function SiteHeader({
                       <Link href="/import-data">Import</Link>
                     </>
                   ) : null}
+                  {showRecover ? (
+                    <>
+                      {" · "}
+                      <Link href="/recover-passwords">Set password</Link>
+                    </>
+                  ) : null}
                   {" · "}
                   <form action={signOut} style={{ display: "inline" }}>
                     <button
@@ -103,6 +113,12 @@ export async function SiteHeader({
                   <Link href="/">Site</Link>
                   {" · "}
                   <Link href="/faq">FAQ</Link>
+                  {showRecover ? (
+                    <>
+                      {" · "}
+                      <Link href="/recover-passwords">Set password</Link>
+                    </>
+                  ) : null}
                   {" · "}
                   <Link href="/login">Sign in</Link>
                   {" · "}

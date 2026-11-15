@@ -17,3 +17,8 @@ export async function shouldShowImportLink(
     return false;
   }
 }
+
+/** Password recovery while IMPORT_SECRET remains bound (including after import). */
+export function shouldShowRecoverLink(): boolean {
+  return isImportSecretConfigured();
+}
