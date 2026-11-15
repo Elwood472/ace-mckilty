@@ -6,11 +6,19 @@ import { checkRateLimit } from "@/lib/rate-limit";
 import { getClientIp } from "@/lib/client-ip";
 import { sql } from "@/lib/db";
 import { hashPassword } from "@/lib/password";
+import { getCurrentUser } from "@/lib/session";
 import {
   getImportSecret,
   importSecretsEqual,
   isImportSecretConfigured,
 } from "@/lib/dump-import";
+import {
+  bothRecoverablePasswordsSet,
+  canUseRecoverPasswords,
+  isRecoverableEmail,
+  lockRecoverPasswords,
+  markRecoverPasswordReset,
+} from "@/lib/recover-passwords";
 
 export type RecoverPasswordState = { error?: string; ok?: string };
 
@@ -23,9 +31,8 @@ function formString(fd: FormData, key: string): string {
 }
 
 /**
- * One-shot recovery while IMPORT_SECRET is still bound: set a new password
- * for an existing account without knowing the old one. Remove IMPORT_SECRET
- * after Rick/Charli can sign in.
+ * Post-import password set for allowlisted accounts only.
+ * Requires signed-in session + IMPORT_SECRET. Remove the secret when done.
  */
 export async function recoverPasswordAction(
   _prev: RecoverPasswordState,
@@ -41,6 +48,11 @@ export async function recoverPasswordAction(
     return { error: "Invalid request. Refresh and try again." };
   }
 
+  const user = await getCurrentUser();
+  if (!user || !(await canUseRecoverPasswords(user.id))) {
+    return { error: "Sign in required." };
+  }
+
   const ip = await getClientIp();
   if (
     !(await checkRateLimit(`recover-pw-ip:${ip}`, {
@@ -51,8 +63,16 @@ export async function recoverPasswordAction(
     return { error: "Too many attempts. Try again later." };
   }
   if (
+    !(await checkRateLimit(`recover-pw-user:${user.id}`, {
+      maxHits: 10,
+      windowMs: 60 * 60 * 1000,
+    }))
+  ) {
+    return { error: "Too many attempts. Try again later." };
+  }
+  if (
     !(await checkRateLimit("recover-pw-global", {
-      maxHits: 30,
+      maxHits: 20,
       windowMs: 60 * 60 * 1000,
     }))
   ) {
@@ -80,9 +100,13 @@ export async function recoverPasswordAction(
     };
   }
 
+  if (!isRecoverableEmail(email)) {
+    return { error: GENERIC_FAIL };
+  }
+
   try {
     const rows = await sql<{ id: string }>(
-      "select id from users where email = $1",
+      "select id from users where lower(email) = $1",
       [email],
     );
     if (!rows.length) {
@@ -94,11 +118,60 @@ export async function recoverPasswordAction(
       rows[0].id,
     ]);
     await sql("delete from sessions where user_id = $1", [rows[0].id]);
+    await markRecoverPasswordReset(email);
+
+    if (await bothRecoverablePasswordsSet()) {
+      return {
+        ok: "Password updated for both imported accounts. Click Done, then remove IMPORT_SECRET.",
+      };
+    }
     return {
-      ok: "Password updated. Sign in with that email, then remove IMPORT_SECRET.",
+      ok: "Password updated. Set the other imported account, then remove IMPORT_SECRET.",
     };
   } catch (e) {
-    console.error("[recover-password] failed", e instanceof Error ? e.message : e);
+    console.error(
+      "[recover-password] failed",
+      e instanceof Error ? e.message : e,
+    );
     return { error: "Could not update password. Try again." };
+  }
+}
+
+export async function finishRecoverPasswordsAction(
+  _prev: RecoverPasswordState,
+  formData: FormData,
+): Promise<RecoverPasswordState> {
+  if (!isImportSecretConfigured()) {
+    return { error: NOT_AVAILABLE };
+  }
+
+  try {
+    await assertCsrf(formData.get("csrf"));
+  } catch {
+    return { error: "Invalid request. Refresh and try again." };
+  }
+
+  const user = await getCurrentUser();
+  if (!user || !(await canUseRecoverPasswords(user.id))) {
+    return { error: "Sign in required." };
+  }
+
+  const provided = formString(formData, "importSecret");
+  const expected = getImportSecret();
+  if (!provided || !importSecretsEqual(provided, expected)) {
+    return { error: GENERIC_FAIL };
+  }
+
+  try {
+    await lockRecoverPasswords();
+    return {
+      ok: "Recovery locked. Remove IMPORT_SECRET from app settings now.",
+    };
+  } catch (e) {
+    console.error(
+      "[recover-password] lock failed",
+      e instanceof Error ? e.message : e,
+    );
+    return { error: "Could not finish. Try again." };
   }
 }

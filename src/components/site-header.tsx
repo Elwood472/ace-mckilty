@@ -1,6 +1,8 @@
 import Link from "next/link";
 import type { User } from "@/lib/types";
 import { signOut } from "@/app/actions/auth";
+import { CsrfField } from "@/components/csrf-field";
+import { ensureCsrfToken } from "@/lib/csrf";
 import {
   shouldShowImportLink,
   shouldShowRecoverLink,
@@ -20,7 +22,8 @@ export async function SiteHeader({
 }) {
   const giftsHome = user ? "/dashboard" : "/gifts";
   const showImport = user ? await shouldShowImportLink(user.id) : false;
-  const showRecover = shouldShowRecoverLink();
+  const showRecover = user ? await shouldShowRecoverLink(user.id) : false;
+  const csrf = user ? await ensureCsrfToken() : "";
 
   return (
     <header className="site-header">
@@ -99,6 +102,7 @@ export async function SiteHeader({
                   ) : null}
                   {" · "}
                   <form action={signOut} style={{ display: "inline" }}>
+                    <CsrfField token={csrf} />
                     <button
                       type="submit"
                       className="btn"
@@ -113,12 +117,6 @@ export async function SiteHeader({
                   <Link href="/">Site</Link>
                   {" · "}
                   <Link href="/faq">FAQ</Link>
-                  {showRecover ? (
-                    <>
-                      {" · "}
-                      <Link href="/recover-passwords">Set password</Link>
-                    </>
-                  ) : null}
                   {" · "}
                   <Link href="/login">Sign in</Link>
                   {" · "}

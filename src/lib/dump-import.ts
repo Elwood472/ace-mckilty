@@ -166,6 +166,15 @@ export async function getImportGate(sessionUserId?: string): Promise<ImportGate>
       return { available: true, locked: false, userCount: null, eligible: false };
     }
 
+    const seeded = await client.query(
+      `select 1 from users
+       where lower(email) in ('bluesbrthr@gmail.com', 'cmebray@gmail.com')
+       limit 1`,
+    );
+    if (seeded.rowCount) {
+      return { available: false, locked: true, userCount: null, eligible: false };
+    }
+
     const countRes = await client.query<{ n: number }>(
       "select count(*)::int as n from users",
     );
@@ -231,6 +240,16 @@ export async function importDumpRequireEmpty(
     );
     if (!mig.rowCount) {
       throw new Error("SCHEMA_MISSING");
+    }
+
+    // Never re-seed after the known imported accounts already exist.
+    const seeded = await client.query(
+      `select 1 from users
+       where lower(email) in ('bluesbrthr@gmail.com', 'cmebray@gmail.com')
+       limit 1`,
+    );
+    if (seeded.rowCount) {
+      throw new Error("REFUSE_LOCKED");
     }
 
     const countRes = await client.query<{ n: number }>(

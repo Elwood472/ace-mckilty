@@ -169,7 +169,16 @@ export async function signIn(
   return { error: "Could not sign in. Try again in a moment." };
 }
 
-export async function signOut(): Promise<void> {
+export async function signOut(formData?: FormData): Promise<void> {
+  try {
+    if (formData) {
+      await assertCsrf(formData.get("csrf"));
+    } else {
+      throw new Error("INVALID_CSRF");
+    }
+  } catch {
+    redirect("/");
+  }
   await destroySession();
   redirect("/");
 }
