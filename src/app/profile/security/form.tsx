@@ -15,10 +15,36 @@ const initial: TwoFactorState = {};
 
 function Flash({ state }: { state: TwoFactorState }) {
   if (state.error) {
-    return <p style={{ color: "#cc0000", fontWeight: 700 }}>{state.error}</p>;
+    return (
+      <p
+        role="alert"
+        style={{
+          color: "#8a0000",
+          fontWeight: 700,
+          background: "#ffe8e8",
+          padding: "8px 10px",
+          marginBottom: 8,
+        }}
+      >
+        {state.error}
+      </p>
+    );
   }
   if (state.ok) {
-    return <p style={{ color: "#060", fontWeight: 700 }}>{state.ok}</p>;
+    return (
+      <p
+        role="status"
+        style={{
+          color: "#064",
+          fontWeight: 700,
+          background: "#e7f7ec",
+          padding: "8px 10px",
+          marginBottom: 8,
+        }}
+      >
+        {state.ok}
+      </p>
+    );
   }
   return null;
 }

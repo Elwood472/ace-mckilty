@@ -170,11 +170,11 @@ export async function enableEmailTwoFactor(
       [user.id],
     );
     if (firstMethod) goHome = true;
-    else return { ok: "Email sign-in codes are on." };
+    else return { ok: "Success — email sign-in codes are turned on." };
   } catch {
     return { error: "Could not update two-factor settings." };
   }
-  if (goHome) redirect("/dashboard");
+  if (goHome) redirect("/profile/security?ok=email");
   return { error: "Could not update two-factor settings." };
 }
 
@@ -292,11 +292,14 @@ export async function confirmTotpSetup(
     );
     await sql("delete from totp_setup where user_id = $1", [user.id]);
     if (firstMethod) goHome = true;
-    else return { ok: "Authenticator app is on." };
+    else
+      return {
+        ok: "Success — your authenticator app is set up and turned on.",
+      };
   } catch {
     return { error: "Could not confirm authenticator." };
   }
-  if (goHome) redirect("/dashboard");
+  if (goHome) redirect("/profile/security?ok=authenticator");
   return { error: "Could not confirm authenticator." };
 }
 
