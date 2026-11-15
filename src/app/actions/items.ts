@@ -13,6 +13,7 @@ import {
 } from "@/lib/authz";
 import { resolveSource } from "@/lib/source";
 import { autofillFromGiftUrl, type AutofillResult } from "@/lib/autofill";
+import { normalizeStoredHttpUrl } from "@/lib/urls";
 
 function s(fd: FormData, key: string): string {
   const v = fd.get(key);
@@ -53,10 +54,18 @@ export async function createItem(
     if (!title) return { error: "Title is required." };
 
     const notes = s(formData, "notes");
-    const url = s(formData, "url");
+    const urlRaw = s(formData, "url");
+    const url = normalizeStoredHttpUrl(urlRaw);
+    if (urlRaw && !url) {
+      return { error: "Gift link must be a full http(s) URL." };
+    }
     const category = s(formData, "category");
     const source = resolveSource(s(formData, "source"), url);
-    const imageUrl = s(formData, "imageUrl");
+    const imageUrlRaw = s(formData, "imageUrl");
+    const imageUrl = normalizeStoredHttpUrl(imageUrlRaw);
+    if (imageUrlRaw && !imageUrl) {
+      return { error: "Image URL must be a full http(s) URL." };
+    }
     const displayDate = s(formData, "displayDate") || null;
     const priceRaw = s(formData, "price");
     const qtyMode = s(formData, "qtyMode");
@@ -147,10 +156,18 @@ export async function updateItem(
     const title = s(formData, "title");
     if (!title) return { error: "Title is required." };
     const notes = s(formData, "notes");
-    const url = s(formData, "url");
+    const urlRaw = s(formData, "url");
+    const url = normalizeStoredHttpUrl(urlRaw);
+    if (urlRaw && !url) {
+      return { error: "Gift link must be a full http(s) URL." };
+    }
     const category = s(formData, "category");
     const source = resolveSource(s(formData, "source"), url);
-    const imageUrl = s(formData, "imageUrl");
+    const imageUrlRaw = s(formData, "imageUrl");
+    const imageUrl = normalizeStoredHttpUrl(imageUrlRaw);
+    if (imageUrlRaw && !imageUrl) {
+      return { error: "Image URL must be a full http(s) URL." };
+    }
     const displayDate = s(formData, "displayDate") || null;
     const priceRaw = s(formData, "price");
     const qtyMode = s(formData, "qtyMode");

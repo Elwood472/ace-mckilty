@@ -3,6 +3,7 @@ import { AuthForm } from "@/components/auth-form";
 import { SiteHeader } from "@/components/site-header";
 import { ensureCsrfToken } from "@/lib/csrf";
 import { getCurrentUser } from "@/lib/session";
+import { safeInternalPath } from "@/lib/urls";
 
 export default async function LoginPage({
   searchParams,
@@ -11,7 +12,8 @@ export default async function LoginPage({
 }) {
   const user = await getCurrentUser();
   const sp = await searchParams;
-  if (user) redirect(sp.next && sp.next.startsWith("/") ? sp.next : "/dashboard");
+  const next = sp.next ? safeInternalPath(sp.next) : "/dashboard";
+  if (user) redirect(next);
   const csrf = await ensureCsrfToken();
 
   return (
@@ -27,7 +29,7 @@ export default async function LoginPage({
         <AuthForm
           mode="login"
           csrf={csrf}
-          next={sp.next && sp.next.startsWith("/") ? sp.next : undefined}
+          next={next !== "/dashboard" ? next : undefined}
         />
       </main>
     </>

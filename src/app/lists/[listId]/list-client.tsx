@@ -15,6 +15,7 @@ import type { Item } from "@/lib/types";
 import { CsrfField } from "@/components/csrf-field";
 import { Flash } from "@/components/flash";
 import type { ItemView, SortDir, SortKey } from "@/lib/types";
+import { safeExternalHref } from "@/lib/urls";
 
 const initial: ActionState = {};
 
@@ -275,10 +276,10 @@ function ItemRow({
     >
       <td className="px-4 py-3">
         <div className="flex gap-3">
-          {item.image_url ? (
+          {safeExternalHref(item.image_url) ? (
             // eslint-disable-next-line @next/next/no-img-element
             <img
-              src={item.image_url}
+              src={safeExternalHref(item.image_url)!}
               alt=""
               width={64}
               height={64}
@@ -286,9 +287,9 @@ function ItemRow({
             />
           ) : null}
           <div>
-            {item.url ? (
+            {safeExternalHref(item.url) ? (
               <a
-                href={item.url}
+                href={safeExternalHref(item.url)!}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="font-semibold text-pine underline-offset-2 hover:underline"

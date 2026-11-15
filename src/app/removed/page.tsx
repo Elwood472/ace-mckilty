@@ -5,6 +5,7 @@ import { ensureCsrfToken } from "@/lib/csrf";
 import { sql } from "@/lib/db";
 import { getCurrentUser } from "@/lib/session";
 import { formatMdY } from "@/lib/dates";
+import { safeExternalHref } from "@/lib/urls";
 import { RemovedActions } from "./removed-actions";
 
 export default async function RemovedPage() {
@@ -72,8 +73,12 @@ export default async function RemovedPage() {
                   <td className="group-name">{r.category || "—"}</td>
                   <td>{r.deleted_at ? formatMdY(r.deleted_at) : ""}</td>
                   <td>
-                    {r.url ? (
-                      <a href={r.url} target="_blank" rel="noreferrer">
+                    {safeExternalHref(r.url) ? (
+                      <a
+                        href={safeExternalHref(r.url)!}
+                        target="_blank"
+                        rel="noreferrer"
+                      >
                         {r.title}
                       </a>
                     ) : (

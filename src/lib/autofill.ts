@@ -1,4 +1,5 @@
 import { resolveSource } from "./source";
+import { assertPublicHttpUrl, fetchPublicHttp, safeExternalHref } from "./urls";
 
 export type AutofillResult = {
   title?: string;
@@ -486,19 +487,15 @@ async function fetchNextRscBody(pageUrl: string): Promise<string> {
   try {
     const u = new URL(pageUrl);
     if (!u.searchParams.has("_rsc")) u.searchParams.set("_rsc", "1");
-    const ctrl = new AbortController();
-    const timer = setTimeout(() => ctrl.abort(), 8000);
-    const res = await fetch(u.toString(), {
-      signal: ctrl.signal,
+    const res = await fetchPublicHttp(u.toString(), {
+      timeoutMs: 8000,
       headers: {
         "User-Agent":
           "Mozilla/5.0 (compatible; AceMcKiltyGiftRegistry/1.0; +local)",
         Accept: "text/x-component",
         RSC: "1",
       },
-      redirect: "follow",
     });
-    clearTimeout(timer);
     if (!res.ok) return "";
     const ct = res.headers.get("content-type") ?? "";
     if (!/x-component|text\/plain|octet-stream/i.test(ct) && !ct.includes("rsc")) {
@@ -518,22 +515,28 @@ export async function autofillFromGiftUrl(url: string): Promise<AutofillResult> 
     return { warning: "Enter a full http(s) URL first." };
   }
 
-  const source = resolveSource("", trimmed);
+  let pageUrl: string;
+  try {
+    pageUrl = (await assertPublicHttpUrl(trimmed)).toString();
+  } catch {
+    return {
+      warning:
+        "That URL is not allowed (use a public http(s) product page).",
+    };
+  }
+
+  const source = resolveSource("", pageUrl);
   const out: AutofillResult = { source: source || undefined };
 
   try {
-    const ctrl = new AbortController();
-    const timer = setTimeout(() => ctrl.abort(), 8000);
-    const res = await fetch(trimmed, {
-      signal: ctrl.signal,
+    const res = await fetchPublicHttp(pageUrl, {
+      timeoutMs: 8000,
       headers: {
         "User-Agent":
           "Mozilla/5.0 (compatible; AceMcKiltyGiftRegistry/1.0; +local)",
         Accept: "text/html,application/xhtml+xml",
       },
-      redirect: "follow",
     });
-    clearTimeout(timer);
     if (!res.ok) {
       out.warning = `Could not fetch page (HTTP ${res.status}). Fill fields manually.`;
       return out;
@@ -550,19 +553,19 @@ export async function autofillFromGiftUrl(url: string): Promise<AutofillResult> 
       metaContent(html, "og:image") || metaContent(html, "twitter:image");
     if (ogImage) {
       try {
-        out.imageUrl = new URL(ogImage, trimmed).toString();
+        out.imageUrl = safeExternalHref(new URL(ogImage, pageUrl).toString()) ?? undefined;
       } catch {
-        out.imageUrl = ogImage;
+        out.imageUrl = safeExternalHref(ogImage) ?? undefined;
       }
     }
 
     // Notes are intentionally not filled from scraped description.
 
-    const slug = productSlugFromUrl(trimmed);
+    const slug = productSlugFromUrl(pageUrl);
     const titleHint = out.title;
     let host = "";
     try {
-      host = new URL(trimmed).hostname;
+      host = new URL(pageUrl).hostname;
     } catch {
       host = "";
     }
@@ -576,7 +579,7 @@ export async function autofillFromGiftUrl(url: string): Promise<AutofillResult> 
       scraped = scrapeAmazonBuyBoxPrice(html);
     }
     if (!scraped && slug) {
-      const rsc = await fetchNextRscBody(trimmed);
+      const rsc = await fetchNextRscBody(pageUrl);
       if (rsc) scraped = priceForProduct(rsc, slug, titleHint);
     }
     if (!scraped) scraped = scrapePrice(html, { slug, titleHint, host });
@@ -596,9 +599,15 @@ export async function autofillFromGiftUrl(url: string): Promise<AutofillResult> 
       out.warning =
         "Page fetched, but no title/image/price found. Edit fields manually.";
     }
-  } catch {
-    out.warning =
-      "Could not reach that URL from this environment. Store was inferred; fill the rest manually.";
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : "";
+    if (/not allowed|Invalid URL|Only http/i.test(msg)) {
+      out.warning =
+        "That URL is not allowed (use a public http(s) product page).";
+    } else {
+      out.warning =
+        "Could not reach that URL from this environment. Store was inferred; fill the rest manually.";
+    }
   }
 
   return out;

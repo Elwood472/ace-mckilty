@@ -7,6 +7,7 @@ import { hashPassword, verifyPassword } from "@/lib/password";
 import { checkRateLimit } from "@/lib/rate-limit";
 import { assertCsrf } from "@/lib/csrf";
 import { createSession, destroySession } from "@/lib/session";
+import { safeInternalPath } from "@/lib/urls";
 
 const credentials = z.object({
   email: z.string().email().max(320),
@@ -97,7 +98,7 @@ export async function signIn(
   const { ensurePersonalList } = await import("@/lib/lists");
   await ensurePersonalList(user.id, named[0]?.display_name ?? "My");
   const next = formString(formData, "next");
-  redirect(next.startsWith("/") && !next.startsWith("//") ? next : "/dashboard");
+  redirect(safeInternalPath(next));
 }
 
 export async function signOut(): Promise<void> {
