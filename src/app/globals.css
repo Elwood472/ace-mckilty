@@ -300,3 +300,205 @@ a.btn:hover {
   font-family: Arial, Helvetica, sans-serif;
   color: var(--navy);
 }
+
+/* ——— Ace McKilty public hub (`/`) ——— */
+.hub-root {
+  --hub-ink: #07111f;
+  --hub-navy: #0c1f4a;
+  --hub-brass: #c9a45c;
+  --hub-mist: #d7e0ef;
+  --hub-foam: #f3f6fb;
+  position: relative;
+  min-height: 100vh;
+  overflow: hidden;
+  color: var(--hub-foam);
+  font-family: var(--font-hub-sans), "Manrope", sans-serif;
+  background: var(--hub-ink);
+}
+
+.hub-atmosphere {
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(ellipse 90% 70% at 15% 20%, rgba(201, 164, 92, 0.18), transparent 55%),
+    radial-gradient(ellipse 70% 60% at 88% 10%, rgba(90, 130, 190, 0.22), transparent 50%),
+    linear-gradient(165deg, #0a1730 0%, #07111f 42%, #0d2448 100%);
+  z-index: 0;
+}
+
+.hub-atmosphere::after {
+  content: "AM";
+  position: absolute;
+  right: -4%;
+  bottom: -8%;
+  font-family: var(--font-hub-display), "Instrument Serif", serif;
+  font-size: clamp(12rem, 38vw, 28rem);
+  line-height: 0.8;
+  color: rgba(215, 224, 239, 0.06);
+  letter-spacing: -0.04em;
+  pointer-events: none;
+  user-select: none;
+  animation: hub-drift 18s ease-in-out infinite alternate;
+}
+
+.hub-top {
+  position: relative;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 22px clamp(20px, 4vw, 48px);
+}
+
+.hub-mark {
+  width: 42px;
+  height: 42px;
+  display: grid;
+  place-items: center;
+  background: var(--hub-brass);
+  color: var(--hub-ink);
+  font-weight: 800;
+  font-size: 14px;
+  letter-spacing: 0.04em;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  animation: hub-fade 0.9s ease both;
+}
+
+.hub-top-label {
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--hub-mist);
+  opacity: 0.85;
+  animation: hub-fade 0.9s ease 0.08s both;
+}
+
+.hub-hero {
+  position: relative;
+  z-index: 2;
+  min-height: calc(100vh - 86px);
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  padding: 32px clamp(20px, 5vw, 72px) 72px;
+  max-width: 920px;
+}
+
+.hub-brand {
+  margin: 0;
+  font-family: var(--font-hub-display), "Instrument Serif", serif;
+  font-weight: 400;
+  font-size: clamp(3.4rem, 11vw, 6.6rem);
+  line-height: 0.92;
+  letter-spacing: -0.02em;
+  color: #fff;
+  animation: hub-rise 1s ease 0.12s both;
+}
+
+.hub-lede {
+  margin: 22px 0 0;
+  max-width: 34rem;
+  font-size: clamp(1.05rem, 2.2vw, 1.25rem);
+  line-height: 1.5;
+  color: var(--hub-mist);
+  animation: hub-rise 1s ease 0.22s both;
+}
+
+.hub-cta {
+  margin-top: 36px;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 14px 28px;
+  animation: hub-rise 1s ease 0.34s both;
+}
+
+.hub-cta-primary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 12px 22px;
+  background: var(--hub-brass);
+  color: var(--hub-ink) !important;
+  font-weight: 700;
+  font-size: 15px;
+  letter-spacing: 0.02em;
+  text-decoration: none !important;
+  border: 1px solid transparent;
+  transition: transform 0.2s ease, background 0.2s ease;
+}
+
+.hub-cta-primary:hover {
+  background: #ddb86e;
+  color: var(--hub-ink) !important;
+  text-decoration: none !important;
+  transform: translateY(-1px);
+}
+
+.hub-cta-link {
+  color: var(--hub-foam) !important;
+  font-size: 15px;
+  font-weight: 600;
+  text-decoration: none !important;
+  border-bottom: 1px solid rgba(201, 164, 92, 0.55);
+  padding-bottom: 2px;
+  transition: color 0.2s ease, border-color 0.2s ease;
+}
+
+.hub-cta-link:hover {
+  color: var(--hub-brass) !important;
+  border-bottom-color: var(--hub-brass);
+  text-decoration: none !important;
+}
+
+.hub-expand {
+  margin-top: 48px;
+  max-width: 28rem;
+  font-size: 13px;
+  line-height: 1.45;
+  color: rgba(215, 224, 239, 0.55);
+  animation: hub-rise 1s ease 0.48s both;
+}
+
+@keyframes hub-rise {
+  from {
+    opacity: 0;
+    transform: translateY(14px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes hub-fade {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes hub-drift {
+  from {
+    transform: translate3d(0, 0, 0);
+  }
+  to {
+    transform: translate3d(-2%, -3%, 0);
+  }
+}
+
+@media (max-width: 640px) {
+  .hub-cta {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 16px;
+  }
+
+  .hub-hero {
+    padding-top: 48px;
+    justify-content: flex-start;
+  }
+}

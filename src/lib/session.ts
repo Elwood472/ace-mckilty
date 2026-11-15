@@ -3,6 +3,12 @@ import { nanoid } from "nanoid";
 import { sql } from "./db";
 import type { User } from "./types";
 
+/**
+ * Ace McKilty shared session cookie.
+ * Signing into Gift Registry (or any future Ace McKilty app on this site)
+ * uses this same cookie so auth can stay shared across apps. The public hub
+ * at `/` does not require login.
+ */
 export const SESSION_COOKIE = "gr_session";
 const SESSION_DAYS = 30;
 
