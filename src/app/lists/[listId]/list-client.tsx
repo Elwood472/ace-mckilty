@@ -8,8 +8,10 @@ import {
   deleteItem,
   markPurchased,
   unpurchase,
+  updateItem,
   type ActionState,
 } from "@/app/actions/items";
+import type { Item } from "@/lib/types";
 import { CsrfField } from "@/components/csrf-field";
 import { Flash } from "@/components/flash";
 import type { ItemView, SortDir, SortKey } from "@/lib/types";
@@ -102,9 +104,9 @@ export function ListFilters({
           Sort
         </label>
         <select id="sort" name="sort" className="field" defaultValue={sort}>
+          <option value="category">Category, then title</option>
           <option value="title">Title</option>
           <option value="price">Price</option>
-          <option value="category">Category</option>
           <option value="display_date">Show starting</option>
         </select>
       </div>
@@ -155,7 +157,6 @@ export function ItemTable({
   items,
   owner,
   csrf,
-  
   listId,
   sort,
   dir,
@@ -163,7 +164,6 @@ export function ItemTable({
   items: ItemView[];
   owner: boolean;
   csrf: string;
-  
   listId: string;
   sort: SortKey;
   dir: SortDir;
@@ -190,25 +190,43 @@ export function ItemTable({
         <thead>
           <tr>
             <th>
-              <SortHeader label="Item" col="title" sort={sort} dir={dir}  listId={listId} />
+              <SortHeader label="Item" col="title" sort={sort} dir={dir} listId={listId} />
             </th>
             <th>
-              <SortHeader label="Category" col="category" sort={sort} dir={dir}  listId={listId} />
+              <SortHeader
+                label="Category"
+                col="category"
+                sort={sort}
+                dir={dir}
+                listId={listId}
+              />
             </th>
             <th>
-              <SortHeader label="Price" col="price" sort={sort} dir={dir}  listId={listId} />
+              <SortHeader label="Price" col="price" sort={sort} dir={dir} listId={listId} />
             </th>
             <th>Store</th>
             <th>Qty</th>
             <th>
-              <SortHeader label="Show starting" col="display_date" sort={sort} dir={dir}  listId={listId} />
+              <SortHeader
+                label="Show starting"
+                col="display_date"
+                sort={sort}
+                dir={dir}
+                listId={listId}
+              />
             </th>
             <th>Action</th>
           </tr>
         </thead>
         <tbody>
           {items.map((item) => (
-            <ItemRow key={item.id} item={item} owner={owner} csrf={csrf} />
+            <ItemRow
+              key={item.id}
+              item={item}
+              owner={owner}
+              csrf={csrf}
+              listId={listId}
+            />
           ))}
         </tbody>
       </table>
@@ -220,10 +238,12 @@ function ItemRow({
   item,
   owner,
   csrf,
+  listId,
 }: {
   item: ItemView;
   owner: boolean;
   csrf: string;
+  listId: string;
 }) {
   const [purchaseState, purchaseAction, purchasePending] = useActionState(
     markPurchased,
@@ -301,18 +321,28 @@ function ItemRow({
       <td className="px-4 py-3 text-muted">{item.display_date ?? "—"}</td>
       <td className="px-4 py-3">
         {owner ? (
-          <form action={deleteAction}>
-            <CsrfField token={csrf} />
-            <input type="hidden" name="itemId" value={item.id} />
-            <button
-              type="submit"
-              className="text-xs font-semibold text-danger hover:underline"
-              disabled={deletePending}
-            >
-              Remove
-            </button>
-            <Flash error={deleteState.error} />
-          </form>
+          <div className="space-y-1">
+            <div>
+              <Link
+                href={`/lists/${listId}/items/${item.id}/edit`}
+                className="text-xs font-semibold text-pine underline-offset-2 hover:underline"
+              >
+                Edit
+              </Link>
+            </div>
+            <form action={deleteAction}>
+              <CsrfField token={csrf} />
+              <input type="hidden" name="itemId" value={item.id} />
+              <button
+                type="submit"
+                className="text-xs font-semibold text-danger hover:underline"
+                disabled={deletePending}
+              >
+                Remove
+              </button>
+              <Flash error={deleteState.error} />
+            </form>
+          </div>
         ) : item.is_taken && !item.i_bought ? (
           <span className="taken-text">Purchased</span>
         ) : item.i_bought ? (
@@ -641,6 +671,281 @@ export function AddItemForm({
         <button type="submit" className="btn btn-primary" disabled={pending}>
           {pending ? "Adding…" : "Add item"}
         </button>
+      </div>
+    </form>
+  );
+}
+
+function dateInputValue(raw: string | null | undefined): string {
+  if (!raw) return "";
+  // Accept ISO timestamps or plain YYYY-MM-DD
+  const m = String(raw).match(/^(\d{4}-\d{2}-\d{2})/);
+  return m ? m[1] : "";
+}
+
+export function EditItemForm({
+  csrf,
+  listId,
+  item,
+  members,
+  initialViewerIds,
+}: {
+  csrf: string;
+  listId: string;
+  item: Item;
+  members: { id: string; display_name: string }[];
+  initialViewerIds: string[];
+}) {
+  const [state, action, pending] = useActionState(updateItem, initial);
+  const initialQtyMode =
+    item.quantity == null ? "unlimited" : item.quantity === 1 ? "1" : "n";
+  const [qtyMode, setQtyMode] = useState(initialQtyMode);
+  const [quantity, setQuantity] = useState(
+    item.quantity != null && item.quantity > 1 ? String(item.quantity) : "2",
+  );
+  const [restricted, setRestricted] = useState(item.restricted);
+  const [viewerIds, setViewerIds] = useState<string[]>(initialViewerIds);
+  const [url, setUrl] = useState(item.url || "");
+  const [title, setTitle] = useState(item.title);
+  const [category, setCategory] = useState(item.category || "");
+  const [price, setPrice] = useState(
+    item.price != null && item.price !== "" ? String(Number(item.price)) : "",
+  );
+  const [displayDate, setDisplayDate] = useState(dateInputValue(item.display_date));
+  const [source, setSource] = useState(item.source || "");
+  const [imageUrl, setImageUrl] = useState(item.image_url || "");
+  const [notes, setNotes] = useState(item.notes || "");
+  const [autofillMsg, setAutofillMsg] = useState<string | undefined>();
+  const [autofillPending, setAutofillPending] = useState(false);
+
+  async function onAutofill() {
+    setAutofillPending(true);
+    setAutofillMsg(undefined);
+    try {
+      const result = await autofillItemFromUrl(url);
+      if (result.title) setTitle(result.title);
+      if (result.price) setPrice(result.price);
+      if (result.source) setSource(result.source);
+      if (result.imageUrl) setImageUrl(result.imageUrl);
+      setAutofillMsg(
+        result.warning ||
+          (result.title || result.price
+            ? "Filled from link — edit anything that looks off."
+            : "No fields found — edit manually."),
+      );
+    } finally {
+      setAutofillPending(false);
+    }
+  }
+
+  return (
+    <form action={action} className="mt-4 grid gap-4 sm:grid-cols-2">
+      <CsrfField token={csrf} />
+      <input type="hidden" name="itemId" value={item.id} />
+      <input type="hidden" name="listId" value={listId} />
+      <div className="sm:col-span-2">
+        <Flash error={state.error} ok={state.ok} />
+        {autofillMsg ? (
+          <p style={{ fontSize: 12, color: "#333", marginTop: 0 }}>{autofillMsg}</p>
+        ) : null}
+      </div>
+      <div className="sm:col-span-2">
+        <label className="label" htmlFor="url">
+          Gift URL
+        </label>
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+          <input
+            id="url"
+            name="url"
+            type="url"
+            className="field"
+            style={{ flex: "1 1 240px" }}
+            placeholder="https://"
+            value={url}
+            onChange={(e) => setUrl(e.target.value)}
+          />
+          <button
+            type="button"
+            className="btn"
+            disabled={autofillPending || !url.trim()}
+            onClick={() => void onAutofill()}
+          >
+            {autofillPending ? "Fetching…" : "Auto-fill"}
+          </button>
+        </div>
+      </div>
+      <div className="sm:col-span-2">
+        <label className="label" htmlFor="title">
+          Title
+        </label>
+        <input
+          id="title"
+          name="title"
+          className="field"
+          required
+          value={title}
+          onChange={(e) => setTitle(e.target.value)}
+        />
+      </div>
+      <div>
+        <label className="label" htmlFor="category">
+          Category
+        </label>
+        <input
+          id="category"
+          name="category"
+          className="field"
+          value={category}
+          onChange={(e) => setCategory(e.target.value)}
+        />
+      </div>
+      <div>
+        <label className="label" htmlFor="price">
+          Price
+        </label>
+        <input
+          id="price"
+          name="price"
+          type="number"
+          min="0"
+          step="0.01"
+          className="field"
+          value={price}
+          onChange={(e) => setPrice(e.target.value)}
+        />
+      </div>
+      <div>
+        <label className="label" htmlFor="qtyMode">
+          Quantity
+        </label>
+        <select
+          id="qtyMode"
+          name="qtyMode"
+          className="field"
+          value={qtyMode}
+          onChange={(e) => setQtyMode(e.target.value)}
+        >
+          <option value="1">One</option>
+          <option value="n">Multiple</option>
+          <option value="unlimited">Unlimited (e.g. gift card)</option>
+        </select>
+      </div>
+      {qtyMode === "n" ? (
+        <div>
+          <label className="label" htmlFor="quantity">
+            How many
+          </label>
+          <input
+            id="quantity"
+            name="quantity"
+            type="number"
+            min={1}
+            className="field"
+            required
+            value={quantity}
+            onChange={(e) => setQuantity(e.target.value)}
+          />
+        </div>
+      ) : (
+        <div />
+      )}
+      <div>
+        <label className="label" htmlFor="displayDate">
+          Show to others starting
+        </label>
+        <input
+          id="displayDate"
+          name="displayDate"
+          type="date"
+          className="field"
+          value={displayDate}
+          onChange={(e) => setDisplayDate(e.target.value)}
+        />
+      </div>
+      <div>
+        <label className="label" htmlFor="source">
+          Store / source
+        </label>
+        <input
+          id="source"
+          name="source"
+          className="field"
+          placeholder="Amazon (from URL if blank)"
+          value={source}
+          onChange={(e) => setSource(e.target.value)}
+        />
+      </div>
+      <div className="sm:col-span-2">
+        <label className="label" htmlFor="imageUrl">
+          Image URL (shown at 64×64)
+        </label>
+        <input
+          id="imageUrl"
+          name="imageUrl"
+          type="url"
+          className="field"
+          value={imageUrl}
+          onChange={(e) => setImageUrl(e.target.value)}
+        />
+      </div>
+      <div className="sm:col-span-2">
+        <label className="label" htmlFor="notes">
+          Notes
+        </label>
+        <textarea
+          id="notes"
+          name="notes"
+          className="field min-h-24"
+          value={notes}
+          onChange={(e) => setNotes(e.target.value)}
+        />
+      </div>
+      <div className="sm:col-span-2">
+        <label className="flex items-center gap-2 text-sm font-semibold text-muted">
+          <input
+            type="checkbox"
+            name="restricted"
+            checked={restricted}
+            onChange={(e) => setRestricted(e.target.checked)}
+          />
+          Restricted visibility (selected people only)
+        </label>
+        {restricted && (
+          <div className="mt-2 max-h-40 space-y-1 overflow-auto rounded-lg border border-[rgba(20,53,44,0.1)] bg-white/60 p-2">
+            {members.length === 0 ? (
+              <p className="text-sm text-muted">
+                No one with access yet — invite someone first.
+              </p>
+            ) : (
+              members.map((m) => (
+                <label key={m.id} className="flex items-center gap-2 text-sm">
+                  <input
+                    type="checkbox"
+                    name="viewerIds"
+                    value={m.id}
+                    checked={viewerIds.includes(m.id)}
+                    onChange={(e) => {
+                      setViewerIds((prev) =>
+                        e.target.checked
+                          ? [...prev, m.id]
+                          : prev.filter((id) => id !== m.id),
+                      );
+                    }}
+                  />
+                  {m.display_name}
+                </label>
+              ))
+            )}
+          </div>
+        )}
+      </div>
+      <div className="sm:col-span-2" style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
+        <button type="submit" className="btn btn-primary" disabled={pending}>
+          {pending ? "Saving…" : "Save changes"}
+        </button>
+        <Link href={`/lists/${listId}`} className="btn" style={{ textDecoration: "none" }}>
+          Cancel
+        </Link>
       </div>
     </form>
   );

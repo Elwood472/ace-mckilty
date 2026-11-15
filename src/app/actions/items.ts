@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { redirect } from "next/navigation";
 import { sql, withTransaction } from "@/lib/db";
 import { assertCsrf } from "@/lib/csrf";
 import { requireUser } from "@/lib/session";
@@ -31,6 +32,11 @@ async function revalidateList(listId: string) {
   revalidatePath(`/lists/${listId}`);
   revalidatePath(`/lists/${listId}/add`);
   revalidatePath("/dashboard");
+}
+
+async function revalidateItemEdit(listId: string, itemId: string) {
+  await revalidateList(listId);
+  revalidatePath(`/lists/${listId}/items/${itemId}/edit`);
 }
 
 export async function createItem(
@@ -125,6 +131,7 @@ export async function updateItem(
   _prev: ActionState,
   formData: FormData,
 ): Promise<ActionState> {
+  let listId = "";
   try {
     await assertCsrf(formData.get("csrf"));
     const user = await requireUser();
@@ -134,7 +141,8 @@ export async function updateItem(
       [itemId],
     );
     if (!items.length) return { error: "Item not found." };
-    await requireListOwner(items[0].list_id, user.id);
+    listId = items[0].list_id;
+    await requireListOwner(listId, user.id);
 
     const title = s(formData, "title");
     if (!title) return { error: "Title is required." };
@@ -200,11 +208,11 @@ export async function updateItem(
       }
     }
 
-    await revalidateList(items[0].list_id);
-    return { ok: "Item updated." };
+    await revalidateItemEdit(listId, itemId);
   } catch {
     return { error: "Could not update item." };
   }
+  redirect(`/lists/${listId}`);
 }
 
 export async function deleteItem(

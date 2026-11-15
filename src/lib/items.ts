@@ -31,16 +31,24 @@ export type ItemFilters = {
   q?: string | null;
 };
 
-function sortClause(sort: SortKey = "title", dir: SortDir = "asc"): string {
+function sortClause(sort: SortKey = "category", dir: SortDir = "asc"): string {
   const allowed: Record<SortKey, string> = {
     title: "i.title",
     price: "i.price nulls last",
     category: "i.category",
     display_date: "i.display_date nulls last",
   };
-  const col = allowed[sort] ?? "i.title";
+  const col = allowed[sort] ?? "i.category";
   const d = dir === "desc" ? "desc" : "asc";
-  return `${col} ${d}`;
+  // Default (and category sorts): category, then alphabetical by title.
+  // Other primary columns still break ties by title A→Z.
+  if (sort === "category" || !allowed[sort]) {
+    return `lower(i.category) ${d}, lower(i.title) asc`;
+  }
+  if (sort === "title") {
+    return `lower(i.title) ${d}`;
+  }
+  return `${col} ${d}, lower(i.title) asc`;
 }
 
 export async function listVisibleItems(

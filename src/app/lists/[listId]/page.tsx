@@ -99,7 +99,7 @@ export default async function ListPage({ params, searchParams }: Props) {
       )
     : [];
 
-  const sort = (one(sp.sort) || "title") as SortKey;
+  const sort = (one(sp.sort) || "category") as SortKey;
   const dir = (one(sp.dir) || "asc") as SortDir;
   const categoryParam = one(sp.category);
   const category =
