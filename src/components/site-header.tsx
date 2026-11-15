@@ -3,10 +3,6 @@ import type { User } from "@/lib/types";
 import { signOut } from "@/app/actions/auth";
 import { CsrfField } from "@/components/csrf-field";
 import { ensureCsrfToken } from "@/lib/csrf";
-import {
-  shouldShowImportLink,
-  shouldShowRecoverLink,
-} from "@/lib/import-nav";
 
 /**
  * Gift Registry chrome under Ace McKilty.
@@ -21,8 +17,6 @@ export async function SiteHeader({
   app?: "gifts";
 }) {
   const giftsHome = user ? "/dashboard" : "/gifts";
-  const showImport = user ? await shouldShowImportLink(user.id) : false;
-  const showRecover = user ? await shouldShowRecoverLink(user.id) : false;
   const csrf = user ? await ensureCsrfToken() : "";
 
   return (
@@ -88,18 +82,6 @@ export async function SiteHeader({
                   <Link href="/dashboard">Home</Link>
                   {" · "}
                   <Link href="/faq">FAQ</Link>
-                  {showImport ? (
-                    <>
-                      {" · "}
-                      <Link href="/import-data">Import</Link>
-                    </>
-                  ) : null}
-                  {showRecover ? (
-                    <>
-                      {" · "}
-                      <Link href="/recover-passwords">Set password</Link>
-                    </>
-                  ) : null}
                   {" · "}
                   <form action={signOut} style={{ display: "inline" }}>
                     <CsrfField token={csrf} />
