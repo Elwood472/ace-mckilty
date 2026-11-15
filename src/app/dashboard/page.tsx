@@ -112,8 +112,8 @@ export default async function DashboardPage() {
 
         {people.length === 0 ? (
           <p>
-            Nobody yet. Invite someone to your list, or search for a person and
-            request access to theirs.
+            Nobody yet. Invite someone to your list, or look them up by exact
+            email and request access to theirs.
           </p>
         ) : (
           <table className="legacy-table" style={{ maxWidth: 980 }}>

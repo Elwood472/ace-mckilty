@@ -18,18 +18,6 @@ export default async function ProfilePage({ params }: Props) {
   const me = await getCurrentUser();
   if (!me) redirect("/login");
 
-  const qCols = QUESTIONNAIRE_COLUMNS.join(", ");
-  const rows = await sql<ProfileViewData & { id: string }>(
-    `select id, display_name, email, birthday::text as birthday,
-            profile_modified_at::text as profile_modified_at,
-            picture_url, caption, height, shoe_size, pants_size, shirt_size,
-            ${qCols}
-     from users where id = $1`,
-    [userId],
-  );
-  if (!rows.length) notFound();
-  const p = rows[0];
-
   const theirListId = await getPersonalListId(userId);
   const csrf = await ensureCsrfToken();
   let access: "self" | "granted" | "pending" | "none" = "none";
@@ -45,25 +33,72 @@ export default async function ProfilePage({ params }: Props) {
     access = pending.length ? "pending" : "none";
   }
 
+  const canSeePrivate = access === "self" || access === "granted";
+
+  if (canSeePrivate) {
+    const qCols = QUESTIONNAIRE_COLUMNS.join(", ");
+    const rows = await sql<ProfileViewData & { id: string }>(
+      `select id, display_name, email, birthday::text as birthday,
+              profile_modified_at::text as profile_modified_at,
+              picture_url, caption, height, shoe_size, pants_size, shirt_size,
+              ${qCols}
+       from users where id = $1`,
+      [userId],
+    );
+    if (!rows.length) notFound();
+    const p = rows[0];
+
+    return (
+      <>
+        <SiteHeader user={me} />
+        <main className="site-main">
+          <p>
+            <Link href="/dashboard">← Home</Link>
+            {userId === me.id ? (
+              <>
+                {" · "}
+                <Link href="/profile/edit">Edit My Profile</Link>
+              </>
+            ) : null}
+            {access === "granted" && theirListId ? (
+              <>
+                {" · "}
+                <Link href={`/lists/${theirListId}`}>View wish list</Link>
+              </>
+            ) : null}
+          </p>
+
+          <ProfileView
+            data={p}
+            isSelf={userId === me.id}
+            birthdayLabel={p.birthday ? formatMdY(p.birthday) : "—"}
+            modifiedLabel={
+              p.profile_modified_at ? formatMdY(p.profile_modified_at) : "—"
+            }
+          />
+        </main>
+      </>
+    );
+  }
+
+  // No list relationship: only public display name + access request UI.
+  // Do not load or render email, birthday, sizes, or questionnaire answers.
+  const publicRows = await sql<{ id: string; display_name: string }>(
+    `select id, display_name from users where id = $1`,
+    [userId],
+  );
+  if (!publicRows.length) notFound();
+  const person = publicRows[0];
+
   return (
     <>
       <SiteHeader user={me} />
       <main className="site-main">
         <p>
           <Link href="/dashboard">← Home</Link>
-          {userId === me.id ? (
-            <>
-              {" · "}
-              <Link href="/profile/edit">Edit My Profile</Link>
-            </>
-          ) : null}
-          {access === "granted" && theirListId ? (
-            <>
-              {" · "}
-              <Link href={`/lists/${theirListId}`}>View wish list</Link>
-            </>
-          ) : null}
         </p>
+
+        <h1 style={{ fontSize: 20, marginTop: 12 }}>{person.display_name}</h1>
 
         {access === "none" && theirListId ? (
           <div
@@ -73,7 +108,8 @@ export default async function ProfilePage({ params }: Props) {
             <div className="panel-head">Wish list access</div>
             <div style={{ padding: 10 }}>
               <p style={{ marginTop: 0 }}>
-                You don&apos;t have access to {p.display_name}&apos;s list yet.
+                You don&apos;t have access to {person.display_name}&apos;s list
+                yet. Their profile stays private until they share with you.
               </p>
               <RequestAccessButton
                 csrf={csrf}
@@ -84,17 +120,14 @@ export default async function ProfilePage({ params }: Props) {
           </div>
         ) : null}
         {access === "pending" ? (
-          <p style={{ color: "#555" }}>Access request pending approval.</p>
+          <p style={{ color: "#555" }}>
+            Access request pending approval. Profile details stay private until
+            then.
+          </p>
         ) : null}
-
-        <ProfileView
-          data={p}
-          isSelf={userId === me.id}
-          birthdayLabel={p.birthday ? formatMdY(p.birthday) : "—"}
-          modifiedLabel={
-            p.profile_modified_at ? formatMdY(p.profile_modified_at) : "—"
-          }
-        />
+        {!theirListId ? (
+          <p style={{ color: "#555" }}>This person has no personal list yet.</p>
+        ) : null}
       </main>
     </>
   );

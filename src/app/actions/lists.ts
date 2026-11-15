@@ -7,6 +7,7 @@ import { assertCsrf } from "@/lib/csrf";
 import { requireUser } from "@/lib/session";
 import { requireListOwner } from "@/lib/authz";
 import { ensurePersonalList } from "@/lib/lists";
+import { arePeopleRelated } from "@/lib/people";
 
 function s(fd: FormData, key: string): string {
   const v = fd.get(key);
@@ -42,6 +43,13 @@ export async function createTogetherList(
       if (oid === user.id) continue;
       const exists = await sql("select 1 from users where id = $1", [oid]);
       if (!exists.length) return { error: "All co-owners must be real accounts." };
+      // Co-owners must already share a list relationship (invite / access).
+      if (!(await arePeopleRelated(user.id, oid))) {
+        return {
+          error:
+            "Co-owners must already share list access with you. Invite or approve them first.",
+        };
+      }
     }
 
     const list = await sql<{ id: string }>(

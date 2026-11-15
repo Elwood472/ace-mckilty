@@ -67,13 +67,13 @@ export function SearchPeoplePanel({ csrf }: { csrf: string }) {
   return (
     <div>
       <label className="label" htmlFor="people-q">
-        Search by name or email
+        Find someone (exact email, or name among people you already know)
       </label>
       <input
         id="people-q"
         className="field"
         value={q}
-        placeholder="Start typing…"
+        placeholder="friend@example.com or a name you already know"
         onChange={(e) => {
           const v = e.target.value;
           setQ(v);
@@ -86,6 +86,10 @@ export function SearchPeoplePanel({ csrf }: { csrf: string }) {
           });
         }}
       />
+      <p style={{ fontSize: 12, color: "#555", margin: "4px 0 0" }}>
+        New people: enter their full email. Name search only covers people you
+        already share a list with.
+      </p>
       {pending ? (
         <p style={{ fontSize: 12, color: "#555" }}>Searching…</p>
       ) : null}
