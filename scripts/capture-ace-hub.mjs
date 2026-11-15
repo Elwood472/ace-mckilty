@@ -47,23 +47,19 @@ await shot(desktop, "68-ace-mckilty-hub-gift-link.png");
 // Also capture CTA-focused crop for clarity
 const box = await gift.boundingBox();
 if (box) {
+  const clip = {
+    x: Math.max(0, box.x - 40),
+    y: Math.max(0, box.y - 80),
+    width: Math.min(900, box.width + 520),
+    height: Math.min(160, box.height + 80),
+  };
   await desktop.screenshot({
     path: path.join(MEDIA, "68-ace-mckilty-hub-gift-link.png"),
-    clip: {
-      x: Math.max(0, box.x - 40),
-      y: Math.max(0, box.y - 120),
-      width: Math.min(900, box.width + 520),
-      height: Math.min(420, box.height + 220),
-    },
+    clip,
   });
   await desktop.screenshot({
     path: path.join(ARTIFACTS, "68-ace-mckilty-hub-gift-link.png"),
-    clip: {
-      x: Math.max(0, box.x - 40),
-      y: Math.max(0, box.y - 120),
-      width: Math.min(900, box.width + 520),
-      height: Math.min(420, box.height + 220),
-    },
+    clip,
   });
 }
 

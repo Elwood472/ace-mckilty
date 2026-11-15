@@ -43,10 +43,6 @@ export default async function AceMcKiltyHubPage() {
 
       <main className="hub-hero">
         <h1 className="hub-brand">Ace McKilty</h1>
-        <p className="hub-lede">
-          One place for the things we share — gifts, mini golf, and whatever
-          comes next.
-        </p>
 
         <nav className="hub-cta" aria-label="Ace McKilty apps">
           <Link href="/gifts" className="hub-cta-primary">
@@ -69,11 +65,6 @@ export default async function AceMcKiltyHubPage() {
             Walkabout Mini Golf Wiki
           </a>
         </nav>
-
-        <p className="hub-expand">
-          More on the way — Biggest Loser, football poll, gaming league, real
-          golf scores.
-        </p>
       </main>
     </div>
   );
