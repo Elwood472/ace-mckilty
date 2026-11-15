@@ -1,9 +1,11 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useMemo } from "react";
 import Link from "next/link";
 import { signIn, signUp, type AuthState } from "@/app/actions/auth";
 import { CsrfField } from "@/components/csrf-field";
+import { TurnstileField } from "@/components/turnstile-field";
+import type { MathChallenge } from "@/lib/captcha";
 
 const initial: AuthState = {};
 
@@ -11,13 +13,18 @@ export function AuthForm({
   mode,
   csrf,
   next,
+  turnstileSiteKey,
+  mathChallenge,
 }: {
   mode: "signup" | "login";
   csrf: string;
   next?: string;
+  turnstileSiteKey: string | null;
+  mathChallenge: MathChallenge | null;
 }) {
   const action = mode === "signup" ? signUp : signIn;
   const [state, formAction, pending] = useActionState(action, initial);
+  const issuedAt = useMemo(() => String(Date.now()), []);
 
   return (
     <form
@@ -27,6 +34,28 @@ export function AuthForm({
     >
       <CsrfField token={csrf} />
       {next ? <input type="hidden" name="next" value={next} /> : null}
+      <input type="hidden" name="form_issued_at" value={issuedAt} />
+      {/* Honeypot — leave empty */}
+      <div
+        aria-hidden="true"
+        style={{
+          position: "absolute",
+          left: "-10000px",
+          top: "auto",
+          width: 1,
+          height: 1,
+          overflow: "hidden",
+        }}
+      >
+        <label htmlFor="company_website">Company website</label>
+        <input
+          id="company_website"
+          name="company_website"
+          type="text"
+          tabIndex={-1}
+          autoComplete="off"
+        />
+      </div>
       {mode === "signup" && (
         <div style={{ marginBottom: 10 }}>
           <label className="label" htmlFor="displayName">
@@ -69,6 +98,26 @@ export function AuthForm({
           autoComplete={mode === "signup" ? "new-password" : "current-password"}
         />
       </div>
+
+      {turnstileSiteKey ? (
+        <TurnstileField siteKey={turnstileSiteKey} />
+      ) : mathChallenge ? (
+        <div style={{ marginBottom: 12 }}>
+          <input type="hidden" name="captcha_token" value={mathChallenge.token} />
+          <label className="label" htmlFor="captcha_answer">
+            {mathChallenge.prompt}
+          </label>
+          <input
+            id="captcha_answer"
+            name="captcha_answer"
+            className="field"
+            required
+            inputMode="numeric"
+            autoComplete="off"
+          />
+        </div>
+      ) : null}
+
       {state.error && (
         <p style={{ color: "#cc0000", fontWeight: 700 }}>{state.error}</p>
       )}

@@ -9,6 +9,7 @@ import { assertCsrf } from "@/lib/csrf";
 import { createSession, destroySession } from "@/lib/session";
 import { safeInternalPath } from "@/lib/urls";
 import { getClientIp } from "@/lib/client-ip";
+import { assertHuman } from "@/lib/captcha";
 
 const credentials = z.object({
   email: z.string().email().max(320),
@@ -33,6 +34,10 @@ export async function signUp(
     return { error: "Invalid request. Refresh and try again." };
   }
 
+  const ip = await getClientIp();
+  const human = await assertHuman(formData, ip);
+  if (!human.ok) return { error: human.error };
+
   const email = formString(formData, "email").toLowerCase();
   const password = formString(formData, "password");
   const displayName = formString(formData, "displayName");
@@ -42,12 +47,29 @@ export async function signUp(
     return { error: "Enter a valid email, name, and password (8+ characters)." };
   }
 
-  const ip = await getClientIp();
   // Cap account creation per IP and per email (bcrypt is expensive).
-  if (!(await checkRateLimit(`signup-ip:${ip}`, { maxHits: 5, windowMs: 60 * 60 * 1000 }))) {
+  if (
+    !(await checkRateLimit(`signup-ip:${ip}`, {
+      maxHits: 5,
+      windowMs: 60 * 60 * 1000,
+    }))
+  ) {
     return { error: "Too many attempts. Try again later." };
   }
-  if (!(await checkRateLimit(`signup:${email}`, { maxHits: 5, windowMs: 60 * 60 * 1000 }))) {
+  if (
+    !(await checkRateLimit(`signup:${email}`, {
+      maxHits: 5,
+      windowMs: 60 * 60 * 1000,
+    }))
+  ) {
+    return { error: "Too many attempts. Try again later." };
+  }
+  if (
+    !(await checkRateLimit(`signup-global`, {
+      maxHits: 60,
+      windowMs: 60 * 60 * 1000,
+    }))
+  ) {
     return { error: "Too many attempts. Try again later." };
   }
 
@@ -82,6 +104,10 @@ export async function signIn(
     return { error: "Invalid request. Refresh and try again." };
   }
 
+  const ip = await getClientIp();
+  const human = await assertHuman(formData, ip);
+  if (!human.ok) return { error: human.error };
+
   const email = formString(formData, "email").toLowerCase();
   const password = formString(formData, "password");
   const parsed = credentials.safeParse({ email, password });
@@ -89,11 +115,20 @@ export async function signIn(
     return { error: "Enter a valid email and password." };
   }
 
-  const ip = await getClientIp();
-  if (!(await checkRateLimit(`signin-ip:${ip}`, { maxHits: 30, windowMs: 15 * 60 * 1000 }))) {
+  if (
+    !(await checkRateLimit(`signin-ip:${ip}`, {
+      maxHits: 20,
+      windowMs: 15 * 60 * 1000,
+    }))
+  ) {
     return { error: "Too many attempts. Try again later." };
   }
-  if (!(await checkRateLimit(`signin:${email}`, { maxHits: 20, windowMs: 15 * 60 * 1000 }))) {
+  if (
+    !(await checkRateLimit(`signin:${email}`, {
+      maxHits: 15,
+      windowMs: 15 * 60 * 1000,
+    }))
+  ) {
     return { error: "Too many attempts. Try again later." };
   }
 
