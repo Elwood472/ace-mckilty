@@ -82,7 +82,9 @@ export async function startLoginTwoFactor(opts: {
   let stubDevCode: string | undefined;
   let emailSentAt: string | null = null;
 
-  if (opts.flags.email_2fa_enabled) {
+  // Auto-email only when email is the sole 2FA method. If authenticator is
+  // also on, users enter that code by default and can request email on demand.
+  if (opts.flags.email_2fa_enabled && !opts.flags.totp_enabled) {
     const code = generateEmailOtp();
     emailCodeHash = hashEmailOtp(code);
     const sent = await sendEmail({

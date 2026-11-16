@@ -202,6 +202,8 @@ export function AuthForm({
         ) : (
           <>
             New here? <Link href="/signup">Create an account</Link>
+            {" · "}
+            <Link href="/login/forgot">Forgot password?</Link>
           </>
         )}
       </p>

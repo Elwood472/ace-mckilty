@@ -28,7 +28,7 @@ export default async function LoginVerifyPage() {
         <p style={{ maxWidth: 420, marginBottom: 12 }}>
           Enter a code from your{" "}
           {methods.length === 2
-            ? "authenticator app or email"
+            ? "authenticator app (or request an email code below)"
             : methods[0] === "email"
               ? "email"
               : "authenticator app"}
@@ -38,12 +38,15 @@ export default async function LoginVerifyPage() {
           <p style={{ fontSize: 13, color: "#555", marginBottom: 12 }}>
             {challenge.email_sent_at
               ? "We sent a code to your account email."
-              : "We could not send email just now — use your authenticator if you have one, or try Resend below."}
+              : challenge.totp_enabled
+                ? "Prefer email this time? Send a code below — we do not email on every login when your authenticator is on."
+                : "We could not send email just now — try Send email code below."}
           </p>
         ) : null}
         <VerifyTwoFactorForm
           csrf={csrf}
           showEmailResend={challenge.email_2fa_enabled}
+          emailAlreadySent={!!challenge.email_sent_at}
         />
         <p style={{ marginTop: 16, fontSize: 12 }}>
           <Link href="/login">← Back to login</Link>

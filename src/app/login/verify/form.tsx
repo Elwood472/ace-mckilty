@@ -13,9 +13,11 @@ const initial: TwoFactorState = {};
 export function VerifyTwoFactorForm({
   csrf,
   showEmailResend,
+  emailAlreadySent = false,
 }: {
   csrf: string;
   showEmailResend: boolean;
+  emailAlreadySent?: boolean;
 }) {
   const [state, verifyAction, verifying] = useActionState(
     verifyTwoFactorLogin,
@@ -76,7 +78,11 @@ export function VerifyTwoFactorForm({
             disabled={resending}
             style={{ fontSize: 13 }}
           >
-            {resending ? "Sending…" : "Resend email code"}
+            {resending
+              ? "Sending…"
+              : emailAlreadySent
+                ? "Resend email code"
+                : "Send email code"}
           </button>
         </form>
       ) : null}

@@ -15,6 +15,7 @@ import { ensurePersonalList, getPersonalListId } from "@/lib/lists";
 import { checkRateLimit } from "@/lib/rate-limit";
 import { searchPeople } from "@/lib/people";
 import { getClientIp } from "@/lib/client-ip";
+import { appBaseUrl } from "@/lib/app-url";
 
 function s(fd: FormData, key: string): string {
   const v = fd.get(key);
@@ -24,11 +25,7 @@ function s(fd: FormData, key: string): string {
 export type ActionState = { error?: string; ok?: string };
 
 function inviteBaseUrl(): string {
-  return (
-    process.env.APP_BASE_URL?.trim() ||
-    process.env.NEXT_PUBLIC_APP_URL?.trim() ||
-    ""
-  );
+  return appBaseUrl();
 }
 
 export async function createListEmailInvite(

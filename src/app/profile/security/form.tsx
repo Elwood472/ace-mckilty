@@ -93,8 +93,9 @@ export function SecuritySettingsForm({
       <section className="panel" style={{ padding: 16, marginBottom: 16 }}>
         <h2 style={{ fontSize: 16, margin: "0 0 8px" }}>Email codes</h2>
         <p style={{ fontSize: 13, color: "#555", marginTop: 0 }}>
-          After your password, we email a 6-digit code to your account
-          address.
+          Backup sign-in codes by email. If your authenticator is also on, we
+          only send a code when you ask for one on the login screen — not on
+          every sign-in.
           {!emailLive
             ? " Bind RESEND_API_KEY for live email (local stub works without it)."
             : null}
