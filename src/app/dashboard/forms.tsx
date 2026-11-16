@@ -67,13 +67,13 @@ export function SearchPeoplePanel({ csrf }: { csrf: string }) {
   return (
     <div>
       <label className="label" htmlFor="people-q">
-        Search by name (or exact email)
+        Find people you already share with
       </label>
       <input
         id="people-q"
         className="field"
         value={q}
-        placeholder="Start typing a name, or enter a full email…"
+        placeholder="Name or exact email of someone you already share with…"
         onChange={(e) => {
           const v = e.target.value;
           setQ(v);
@@ -87,8 +87,8 @@ export function SearchPeoplePanel({ csrf }: { csrf: string }) {
         }}
       />
       <p style={{ fontSize: 12, color: "#555", margin: "4px 0 0" }}>
-        Type at least 4 letters of a name (prefix match). Full profiles open
-        after someone shares their list with you.
+        Search only finds people you already share a list with. To connect with
+        someone new, send them an email invite from your list.
       </p>
       {pending ? (
         <p style={{ fontSize: 12, color: "#555" }}>Searching…</p>

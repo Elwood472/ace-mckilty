@@ -141,12 +141,39 @@ export async function arePeopleRelated(
   return rows.length > 0;
 }
 
+/** SQL fragment: viewer already shares access, a pending request, or co-owns. */
+const relatedToViewer = `
+  (
+    exists(
+      select 1 from list_access a
+      join wish_lists l on l.id = a.list_id and l.list_type = 'personal'
+      join wish_list_owners o on o.list_id = l.id and o.user_id = u.id
+      where a.user_id = $1
+    )
+    or exists(
+      select 1 from list_access a
+      join wish_lists l on l.id = a.list_id and l.list_type = 'personal'
+      join wish_list_owners o on o.list_id = l.id and o.user_id = $1
+      where a.user_id = u.id
+    )
+    or exists(
+      select 1 from list_access_requests r
+      join wish_lists l on l.id = r.list_id and l.list_type = 'personal'
+      join wish_list_owners o on o.list_id = l.id and o.user_id = u.id
+      where r.requester_id = $1 and r.status = 'pending'
+    )
+    or exists(
+      select 1 from wish_list_owners o1
+      join wish_list_owners o2 on o2.list_id = o1.list_id
+      where o1.user_id = $1 and o2.user_id = u.id
+    )
+  )
+`;
+
 /**
- * Find people for access requests (any signed-in user).
- * - Name: global prefix match on display_name only (not email).
- * - Exact email: only when viewer already shares list access / pending
- *   request / co-ownership — never confirms arbitrary accounts exist.
- * Email addresses are never returned unless the viewer already has access.
+ * Find people you already know (shared access / co-ownership / pending).
+ * No global directory: name and email search cannot enumerate strangers.
+ * Use email invites to connect with new people.
  */
 export async function searchPeople(
   viewerId: string,
@@ -179,7 +206,7 @@ export async function searchPeople(
   `;
 
   const byExactEmail = looksLikeEmail(q);
-  // Prefix-only, 4+ chars, small cap — slows directory scraping vs substring.
+  // Prefix-only among related people; 4+ chars; small cap.
   if (!byExactEmail && q.length < 4) return [];
 
   const rows = byExactEmail
@@ -187,25 +214,7 @@ export async function searchPeople(
         `${selectHit}
          where u.id <> $1
            and lower(u.email) = lower($2)
-           and (
-             exists(
-               select 1 from list_access a
-               join wish_lists l on l.id = a.list_id and l.list_type = 'personal'
-               join wish_list_owners o on o.list_id = l.id and o.user_id = u.id
-               where a.user_id = $1
-             )
-             or exists(
-               select 1 from list_access_requests r
-               join wish_lists l on l.id = r.list_id and l.list_type = 'personal'
-               join wish_list_owners o on o.list_id = l.id and o.user_id = u.id
-               where r.requester_id = $1 and r.status = 'pending'
-             )
-             or exists(
-               select 1 from wish_list_owners o1
-               join wish_list_owners o2 on o2.list_id = o1.list_id
-               where o1.user_id = $1 and o2.user_id = u.id
-             )
-           )
+           and ${relatedToViewer}
          limit 1`,
         [viewerId, q],
       )
@@ -213,6 +222,7 @@ export async function searchPeople(
         `${selectHit}
          where u.id <> $1
            and u.display_name ilike $2
+           and ${relatedToViewer}
          order by u.display_name
          limit 5`,
         [viewerId, `${q}%`],

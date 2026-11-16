@@ -12,14 +12,14 @@ export default async function InvitePage({ params }: Props) {
   const { token } = await params;
   const user = await getCurrentUser();
 
+  // Validate the token without selecting list title or invitee email —
+  // those must not be shown to arbitrary signed-in visitors.
   const invites = await sql<{
-    list_title: string;
+    id: string;
     email: string | null;
-    expires_at: string;
   }>(
-    `select l.title as list_title, i.email, i.expires_at::text as expires_at
+    `select i.id, i.email
      from list_invites i
-     join wish_lists l on l.id = i.list_id
      where i.token = $1 and i.accepted_at is null and i.expires_at > now()`,
     [token],
   );
@@ -47,6 +47,10 @@ export default async function InvitePage({ params }: Props) {
     redirect(`/login?next=/invite/${token}`);
   }
 
+  const emailMismatch =
+    !!invite.email &&
+    invite.email.toLowerCase() !== user.email.toLowerCase();
+
   const csrf = await ensureCsrfToken();
 
   return (
@@ -59,16 +63,24 @@ export default async function InvitePage({ params }: Props) {
           </span>
         </p>
         <h1 style={{ color: "#000080", fontSize: 20, marginTop: 12 }}>
-          View {invite.list_title}
+          Wish list invite
         </h1>
-        <p>
-          You&apos;re invited
-          {invite.email ? ` as ${invite.email}` : ""} to see this wish list.
-          Accept to get access.
-        </p>
-        <div style={{ marginTop: 16 }}>
-          <AcceptInviteButton token={token} csrf={csrf} />
-        </div>
+        {emailMismatch ? (
+          <p>
+            This invite was sent to a different email address. Sign in with the
+            invited account, or ask the owner for a new invite.
+          </p>
+        ) : (
+          <>
+            <p>
+              You&apos;ve been invited to view a wish list. Accept to get
+              access. The list opens after you accept.
+            </p>
+            <div style={{ marginTop: 16 }}>
+              <AcceptInviteButton token={token} csrf={csrf} />
+            </div>
+          </>
+        )}
       </main>
     </>
   );

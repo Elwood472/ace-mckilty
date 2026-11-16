@@ -5,11 +5,8 @@ const nextConfig: NextConfig = {
   // every Server Action with a CSRF origin mismatch (login/signup → ERROR page).
   experimental: {
     serverActions: {
-      allowedOrigins: [
-        "ace-mckilty.apps.grok.bot",
-        "*.apps.grok.bot",
-        "apps.grok.bot",
-      ],
+      // Exact public host only — no wildcard apps.grok.bot origins.
+      allowedOrigins: ["ace-mckilty.apps.grok.bot"],
     },
   },
   serverExternalPackages: ["@electric-sql/pglite"],

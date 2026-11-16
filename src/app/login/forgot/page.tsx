@@ -11,7 +11,10 @@ export default async function ForgotPasswordPage() {
 
   const csrf = await ensureCsrfToken();
   const turnstileSiteKey = getTurnstileSiteKey();
-  const mathChallenge = !turnstileSiteKey ? issueMathChallenge() : null;
+  const mathChallenge =
+    !turnstileSiteKey && !process.env.DATABASE_URL?.trim()
+      ? issueMathChallenge()
+      : null;
 
   return (
     <>
@@ -24,11 +27,17 @@ export default async function ForgotPasswordPage() {
           Enter the email for your account. If it is on file, we will send a
           reset link.
         </p>
-        <ForgotPasswordForm
-          csrf={csrf}
-          turnstileSiteKey={turnstileSiteKey}
-          mathChallenge={mathChallenge}
-        />
+        {!turnstileSiteKey && !mathChallenge ? (
+          <p style={{ color: "#cc0000", fontWeight: 700 }}>
+            Password reset is temporarily unavailable. Try again later.
+          </p>
+        ) : (
+          <ForgotPasswordForm
+            csrf={csrf}
+            turnstileSiteKey={turnstileSiteKey}
+            mathChallenge={mathChallenge}
+          />
+        )}
       </main>
     </>
   );
