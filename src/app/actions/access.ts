@@ -13,7 +13,6 @@ import {
 } from "@/lib/authz";
 import { ensurePersonalList, getPersonalListId } from "@/lib/lists";
 import { checkRateLimit } from "@/lib/rate-limit";
-import { searchPeople } from "@/lib/people";
 import { getClientIp } from "@/lib/client-ip";
 import { appBaseUrl } from "@/lib/app-url";
 
@@ -460,35 +459,3 @@ export async function revokeListAccess(
   }
 }
 
-export async function searchPeopleAction(
-  query: string,
-): Promise<
-  {
-    id: string;
-    display_name: string;
-    email: string | null;
-    personal_list_id: string | null;
-    has_access: boolean;
-    pending_request: boolean;
-  }[]
-> {
-  const user = await requireUser();
-  const ip = await getClientIp();
-  if (
-    !(await checkRateLimit(`people-search:${user.id}`, {
-      maxHits: 20,
-      windowMs: 15 * 60 * 1000,
-    }))
-  ) {
-    return [];
-  }
-  if (
-    !(await checkRateLimit(`people-search-ip:${ip}`, {
-      maxHits: 25,
-      windowMs: 15 * 60 * 1000,
-    }))
-  ) {
-    return [];
-  }
-  return searchPeople(user.id, query);
-}

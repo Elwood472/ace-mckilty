@@ -11,7 +11,6 @@ import {
   CreateTogetherForm,
   DecideRequestForm,
   InviteMyListForm,
-  SearchPeoplePanel,
 } from "./forms";
 
 export default async function DashboardPage() {
@@ -249,12 +248,6 @@ export default async function DashboardPage() {
             <div className="panel-head">Invite someone to my list</div>
             <div style={{ padding: 10 }}>
               <InviteMyListForm csrf={csrf} listId={myListId} />
-            </div>
-          </div>
-          <div className="panel" style={{ minWidth: 280, flex: "1 1 280px" }}>
-            <div className="panel-head">Find a person</div>
-            <div style={{ padding: 10 }}>
-              <SearchPeoplePanel csrf={csrf} />
             </div>
           </div>
           <div className="panel" style={{ minWidth: 280, flex: "1 1 280px" }}>

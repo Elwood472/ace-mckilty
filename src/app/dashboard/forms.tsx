@@ -1,12 +1,9 @@
 "use client";
 
-import Link from "next/link";
-import { useActionState, useState, useTransition } from "react";
+import { useActionState } from "react";
 import {
   createListEmailInvite,
   decideAccessRequest,
-  requestListAccess,
-  searchPeopleAction,
   type ActionState,
 } from "@/app/actions/access";
 import { createTogetherList } from "@/app/actions/lists";
@@ -43,102 +40,6 @@ export function InviteMyListForm({
         {pending ? "Sending…" : "Email invite link"}
       </button>
     </form>
-  );
-}
-
-type Hit = {
-  id: string;
-  display_name: string;
-  email: string | null;
-  personal_list_id: string | null;
-  has_access: boolean;
-  pending_request: boolean;
-};
-
-export function SearchPeoplePanel({ csrf }: { csrf: string }) {
-  const [q, setQ] = useState("");
-  const [hits, setHits] = useState<Hit[]>([]);
-  const [pending, start] = useTransition();
-  const [reqState, reqAction, reqPending] = useActionState(
-    requestListAccess,
-    initial,
-  );
-
-  return (
-    <div>
-      <label className="label" htmlFor="people-q">
-        Find people you already share with
-      </label>
-      <input
-        id="people-q"
-        className="field"
-        value={q}
-        placeholder="Name or exact email of someone you already share with…"
-        onChange={(e) => {
-          const v = e.target.value;
-          setQ(v);
-          start(async () => {
-            if (v.trim().length < 4) {
-              setHits([]);
-              return;
-            }
-            setHits(await searchPeopleAction(v));
-          });
-        }}
-      />
-      <p style={{ fontSize: 12, color: "#555", margin: "4px 0 0" }}>
-        Search only finds people you already share a list with. To connect with
-        someone new, send them an email invite from your list.
-      </p>
-      {pending ? (
-        <p style={{ fontSize: 12, color: "#555" }}>Searching…</p>
-      ) : null}
-      <Flash error={reqState.error} ok={reqState.ok} />
-      <ul style={{ listStyle: "none", padding: 0, margin: "8px 0 0" }}>
-        {hits.map((h) => (
-          <li
-            key={h.id}
-            style={{
-              display: "flex",
-              gap: 8,
-              alignItems: "center",
-              justifyContent: "space-between",
-              padding: "6px 0",
-              borderBottom: "1px solid #eee",
-            }}
-          >
-            <div>
-              <Link href={`/profile/${h.id}`} style={{ fontWeight: 600 }}>
-                {h.display_name}
-              </Link>
-              {h.email ? (
-                <div style={{ fontSize: 12, color: "#555" }}>{h.email}</div>
-              ) : null}
-            </div>
-            <div>
-              {h.has_access && h.personal_list_id ? (
-                <Link href={`/lists/${h.personal_list_id}`} className="btn">
-                  Open list
-                </Link>
-              ) : h.pending_request ? (
-                <span style={{ fontSize: 12, color: "#555" }}>Pending</span>
-              ) : h.personal_list_id ? (
-                <form action={reqAction}>
-                  <CsrfField token={csrf} />
-                  <input type="hidden" name="listId" value={h.personal_list_id} />
-                  <input type="hidden" name="ownerUserId" value={h.id} />
-                  <button type="submit" className="btn" disabled={reqPending}>
-                    Request access
-                  </button>
-                </form>
-              ) : (
-                <span style={{ fontSize: 12, color: "#555" }}>No list</span>
-              )}
-            </div>
-          </li>
-        ))}
-      </ul>
-    </div>
   );
 }
 
