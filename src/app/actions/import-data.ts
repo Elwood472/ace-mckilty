@@ -3,7 +3,7 @@
 import { assertCsrf } from "@/lib/csrf";
 import { checkRateLimit } from "@/lib/rate-limit";
 import { getClientIp } from "@/lib/client-ip";
-import { getCurrentUser } from "@/lib/session";
+import { requireUser } from "@/lib/session";
 import {
   getImportGate,
   getImportSecret,
@@ -63,9 +63,18 @@ export async function importDumpAction(
     return { error: "Invalid request. Refresh and try again." };
   }
 
-  const user = await getCurrentUser();
-  if (!user) {
-    return { error: "Sign in required." };
+  // Same bar as /import-data page: signed-in + two-factor enrolled.
+  // getCurrentUser alone would allow a brand-new post-signup session.
+  let user;
+  try {
+    user = await requireUser();
+  } catch (e) {
+    if (e instanceof Error && e.message === "UNAUTHORIZED") {
+      return { error: "Sign in required." };
+    }
+    // NEXT_REDIRECT from mandatory 2FA enrollment
+    if (e && typeof e === "object" && "digest" in e) throw e;
+    throw e;
   }
 
   const ip = await getClientIp();
