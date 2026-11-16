@@ -45,11 +45,11 @@ export async function createListEmailInvite(
       return { error: "Enter a valid email." };
     }
     const ip = await getClientIp();
-    // Tight limits: open sign-up must not turn Resend into a spam relay.
-    // Include IP + site-wide caps so spinning new accounts still hits a ceiling.
+    // Limits: open sign-up must not turn Resend into a spam relay, but a
+    // normal gift-list owner needs room to invite family/friends.
     if (
       !(await checkRateLimit(`create-invite:${user.id}`, {
-        maxHits: 2,
+        maxHits: 8,
         windowMs: 15 * 60 * 1000,
       }))
     ) {
@@ -57,7 +57,7 @@ export async function createListEmailInvite(
     }
     if (
       !(await checkRateLimit(`create-invite-ip:${ip}`, {
-        maxHits: 4,
+        maxHits: 12,
         windowMs: 15 * 60 * 1000,
       }))
     ) {
@@ -65,7 +65,7 @@ export async function createListEmailInvite(
     }
     if (
       !(await checkRateLimit(`outbound-email-ip:${ip}`, {
-        maxHits: 6,
+        maxHits: 20,
         windowMs: 60 * 60 * 1000,
       }))
     ) {
@@ -73,7 +73,7 @@ export async function createListEmailInvite(
     }
     if (
       !(await checkRateLimit(`outbound-email-global`, {
-        maxHits: 40,
+        maxHits: 80,
         windowMs: 60 * 60 * 1000,
       }))
     ) {
@@ -81,13 +81,13 @@ export async function createListEmailInvite(
     }
     if (
       !(await checkRateLimit(`create-invite-day:${user.id}`, {
-        maxHits: 5,
+        maxHits: 20,
         windowMs: 24 * 60 * 60 * 1000,
       }))
     ) {
       return { error: "Daily invite limit reached. Try again tomorrow." };
     }
-    // New accounts: only one invite in the first 48 hours.
+    // New accounts: generous enough for a household list, still capped.
     const age = await sql<{ created_at: string }>(
       "select created_at::text as created_at from users where id = $1",
       [user.id],
@@ -96,13 +96,13 @@ export async function createListEmailInvite(
     if (Date.now() - createdMs < 48 * 60 * 60 * 1000) {
       if (
         !(await checkRateLimit(`create-invite-new:${user.id}`, {
-          maxHits: 1,
+          maxHits: 15,
           windowMs: 48 * 60 * 60 * 1000,
         }))
       ) {
         return {
           error:
-            "New accounts can send only one invite in the first two days. Try again later.",
+            "New accounts can send a limited number of invites in the first two days. Try again later.",
         };
       }
     }
