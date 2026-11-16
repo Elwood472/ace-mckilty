@@ -1,6 +1,10 @@
 import { redirect } from "next/navigation";
 import { SiteHeader } from "@/components/site-header";
-import { getTurnstileSiteKey, issueMathChallenge } from "@/lib/captcha";
+import {
+  allowMathCaptchaFallback,
+  getTurnstileSiteKey,
+  issueMathChallenge,
+} from "@/lib/captcha";
 import { ensureCsrfToken } from "@/lib/csrf";
 import { getCurrentUser } from "@/lib/session";
 import { ForgotPasswordForm } from "./form";
@@ -11,7 +15,10 @@ export default async function ForgotPasswordPage() {
 
   const csrf = await ensureCsrfToken();
   const turnstileSiteKey = getTurnstileSiteKey();
-  const mathChallenge = !turnstileSiteKey ? await issueMathChallenge() : null;
+  const mathChallenge =
+    !turnstileSiteKey && allowMathCaptchaFallback()
+      ? await issueMathChallenge()
+      : null;
 
   return (
     <>

@@ -3,7 +3,11 @@ import { AuthForm } from "@/components/auth-form";
 import { SiteHeader } from "@/components/site-header";
 import { ensureCsrfToken } from "@/lib/csrf";
 import { ensureTwoFactorEnrolled, getCurrentUser } from "@/lib/session";
-import { getTurnstileSiteKey, issueMathChallenge } from "@/lib/captcha";
+import {
+  allowMathCaptchaFallback,
+  getTurnstileSiteKey,
+  issueMathChallenge,
+} from "@/lib/captcha";
 
 export default async function SignupPage() {
   const user = await getCurrentUser();
@@ -13,7 +17,10 @@ export default async function SignupPage() {
   }
   const csrf = await ensureCsrfToken();
   const turnstileSiteKey = getTurnstileSiteKey();
-  const mathChallenge = turnstileSiteKey ? null : await issueMathChallenge();
+  const mathChallenge =
+    !turnstileSiteKey && allowMathCaptchaFallback()
+      ? await issueMathChallenge()
+      : null;
 
   return (
     <>

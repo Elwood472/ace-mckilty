@@ -143,7 +143,11 @@ export function ForgotPasswordForm({
             </p>
           ) : null}
         </div>
-      ) : null}
+      ) : (
+        <p style={{ color: "#cc0000", fontWeight: 700, marginBottom: 12 }}>
+          Password reset is temporarily unavailable (CAPTCHA not configured).
+        </p>
+      )}
       {state.error ? (
         <p style={{ color: "#cc0000", fontWeight: 700 }}>{state.error}</p>
       ) : null}
@@ -159,7 +163,11 @@ export function ForgotPasswordForm({
       <button
         type="submit"
         className="btn btn-primary"
-        disabled={pending || (!!mathChallenge && !powReady)}
+        disabled={
+          pending ||
+          (!turnstileSiteKey && !mathChallenge) ||
+          (!!mathChallenge && !powReady)
+        }
       >
         {pending ? "Sending…" : "Send reset link"}
       </button>

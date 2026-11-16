@@ -9,17 +9,16 @@ import {
 /**
  * Abuse / CAPTCHA helpers.
  *
- * Prefer Cloudflare Turnstile when TURNSTILE_SITE_KEY + TURNSTILE_SECRET_KEY
- * are set (bind as app secrets). Otherwise use a signed math challenge plus a
- * small proof-of-work so signup/signin always require a non-trivial check —
- * including hosted when Turnstile is not bound yet.
+ * Hosted (DATABASE_URL set): Cloudflare Turnstile is required
+ * (TURNSTILE_SITE_KEY + TURNSTILE_SECRET_KEY). There is no math/PoW fallback —
+ * client-solvable puzzles are not an acceptable production default.
  *
- * On hosted Postgres, the math HMAC key is stored once in app_runtime_secrets
- * so every worker verifies the same challenges. Local (no DATABASE_URL) uses a
- * process-lifetime key. Optional CAPTCHA_HMAC_SECRET overrides both.
+ * Local (no DATABASE_URL): Cloudflare always-pass test keys are used so
+ * signup/login work without real Turnstile. Math+PoW remains only as a local
+ * last resort if those test keys are somehow unavailable.
  *
- * Cloudflare always-pass test keys are used only when DATABASE_URL is unset
- * (local PGlite), never as a production fallback.
+ * Optional CAPTCHA_HMAC_SECRET / CSRF_SECRET override the math HMAC key when
+ * the local math path is used.
  */
 
 const MATH_TTL_MS = 10 * 60 * 1000;
@@ -228,7 +227,7 @@ async function verifyTurnstile(
  * Validate human checks on auth forms:
  * 1) Honeypot must be empty
  * 2) Form must not submit instantly (min dwell)
- * 3) Turnstile token when site key is active, else math + PoW
+ * 3) Turnstile when configured (required on hosted); local-only math + PoW else
  */
 export async function assertHuman(
   formData: FormData,
@@ -250,12 +249,21 @@ export async function assertHuman(
   }
 
   const siteKey = getTurnstileSiteKey();
-  if (siteKey) {
+  const secret = getTurnstileSecret();
+  if (siteKey && secret) {
     const token =
       typeof formData.get("cf-turnstile-response") === "string"
         ? String(formData.get("cf-turnstile-response")).trim()
         : "";
     return verifyTurnstile(token, ip);
+  }
+
+  // Hosted production: never fall back to client-solvable math CAPTCHA.
+  if (process.env.DATABASE_URL?.trim()) {
+    return {
+      ok: false,
+      error: "CAPTCHA is not configured. Try again later.",
+    };
   }
 
   const mathToken =
@@ -281,4 +289,9 @@ export async function assertHuman(
     };
   }
   return { ok: true };
+}
+
+/** True when the local math+PoW path may be offered (never on hosted Postgres). */
+export function allowMathCaptchaFallback(): boolean {
+  return !process.env.DATABASE_URL?.trim();
 }

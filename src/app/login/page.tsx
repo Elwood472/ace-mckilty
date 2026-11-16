@@ -1,7 +1,11 @@
 import { redirect } from "next/navigation";
 import { AuthForm } from "@/components/auth-form";
 import { SiteHeader } from "@/components/site-header";
-import { getTurnstileSiteKey, issueMathChallenge } from "@/lib/captcha";
+import {
+  allowMathCaptchaFallback,
+  getTurnstileSiteKey,
+  issueMathChallenge,
+} from "@/lib/captcha";
 import { ensureCsrfToken } from "@/lib/csrf";
 import { ensureTwoFactorEnrolled, getCurrentUser } from "@/lib/session";
 import { safeInternalPath } from "@/lib/url-safety";
@@ -19,9 +23,12 @@ export default async function LoginPage({
     redirect(next);
   }
   const csrf = await ensureCsrfToken();
-  // Always show CAPTCHA on login (matches server assertHuman).
+  // Hosted requires Turnstile; math CAPTCHA is local-only.
   const turnstileSiteKey = getTurnstileSiteKey();
-  const mathChallenge = !turnstileSiteKey ? await issueMathChallenge() : null;
+  const mathChallenge =
+    !turnstileSiteKey && allowMathCaptchaFallback()
+      ? await issueMathChallenge()
+      : null;
   const resetOk = sp.reset === "1";
 
   return (

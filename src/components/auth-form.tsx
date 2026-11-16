@@ -178,7 +178,11 @@ export function AuthForm({
             </p>
           ) : null}
         </div>
-      ) : null}
+      ) : (
+        <p style={{ color: "#cc0000", fontWeight: 700, marginBottom: 12 }}>
+          Sign-in is temporarily unavailable (CAPTCHA not configured).
+        </p>
+      )}
 
       {state.error && (
         <p style={{ color: "#cc0000", fontWeight: 700 }}>{state.error}</p>
@@ -186,7 +190,11 @@ export function AuthForm({
       <button
         type="submit"
         className="btn btn-primary"
-        disabled={pending || (!!mathChallenge && !powReady)}
+        disabled={
+          pending ||
+          (!turnstileSiteKey && !mathChallenge) ||
+          (!!mathChallenge && !powReady)
+        }
       >
         {pending
           ? "Please wait…"

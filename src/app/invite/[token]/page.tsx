@@ -12,6 +12,13 @@ export default async function InvitePage({ params }: Props) {
   const { token } = await params;
   const user = await getCurrentUser();
 
+  // Anonymous visitors always hit the same login redirect — never reveal
+  // whether a token is valid before authentication.
+  if (!user) {
+    const next = `/invite/${encodeURIComponent(token)}`;
+    redirect(`/login?next=${encodeURIComponent(next)}`);
+  }
+
   // Validate the token without selecting list title or invitee email —
   // those must not be shown to arbitrary signed-in visitors.
   const invites = await sql<{
@@ -42,10 +49,6 @@ export default async function InvitePage({ params }: Props) {
   }
 
   const invite = invites[0];
-
-  if (!user) {
-    redirect(`/login?next=/invite/${token}`);
-  }
 
   const emailMismatch =
     !!invite.email &&

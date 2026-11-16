@@ -29,18 +29,19 @@ export async function autofillItemFromUrl(
 ): Promise<AutofillResult> {
   const user = await requireUser();
   const ip = await getClientIp();
+  // Per-user + per-IP only — no shared global that one account can burn for everyone.
   if (
     !(await checkRateLimit(`autofill:${user.id}`, {
       maxHits: 8,
       windowMs: 15 * 60 * 1000,
     })) ||
     !(await checkRateLimit(`autofill-ip:${ip}`, {
-      maxHits: 15,
+      maxHits: 20,
       windowMs: 15 * 60 * 1000,
     })) ||
-    !(await checkRateLimit("autofill-global", {
-      maxHits: 120,
-      windowMs: 60 * 60 * 1000,
+    !(await checkRateLimit(`autofill-day:${user.id}`, {
+      maxHits: 40,
+      windowMs: 24 * 60 * 60 * 1000,
     }))
   ) {
     return { warning: "Too many auto-fill attempts. Try again later." };
