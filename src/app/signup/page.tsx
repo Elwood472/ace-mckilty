@@ -13,11 +13,7 @@ export default async function SignupPage() {
   }
   const csrf = await ensureCsrfToken();
   const turnstileSiteKey = getTurnstileSiteKey();
-  // Math CAPTCHA is local-only; hosted requires Turnstile secrets.
-  const mathChallenge =
-    !turnstileSiteKey && !process.env.DATABASE_URL?.trim()
-      ? issueMathChallenge()
-      : null;
+  const mathChallenge = turnstileSiteKey ? null : issueMathChallenge();
 
   return (
     <>
@@ -26,18 +22,12 @@ export default async function SignupPage() {
         <p className="brand-title" style={{ fontSize: 22, marginBottom: 12 }}>
           Create your account
         </p>
-        {!turnstileSiteKey && !mathChallenge ? (
-          <p style={{ color: "#cc0000", fontWeight: 700 }}>
-            Sign-up protection is temporarily unavailable. Try again later.
-          </p>
-        ) : (
-          <AuthForm
-            mode="signup"
-            csrf={csrf}
-            turnstileSiteKey={turnstileSiteKey}
-            mathChallenge={mathChallenge}
-          />
-        )}
+        <AuthForm
+          mode="signup"
+          csrf={csrf}
+          turnstileSiteKey={turnstileSiteKey}
+          mathChallenge={mathChallenge}
+        />
       </main>
     </>
   );

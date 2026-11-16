@@ -25,11 +25,7 @@ export default async function LoginPage({
   const needsCaptcha = await loginCaptchaRequired(ip);
   const turnstileSiteKey = needsCaptcha ? getTurnstileSiteKey() : null;
   const mathChallenge =
-    needsCaptcha &&
-    !turnstileSiteKey &&
-    !process.env.DATABASE_URL?.trim()
-      ? issueMathChallenge()
-      : null;
+    needsCaptcha && !turnstileSiteKey ? issueMathChallenge() : null;
   const resetOk = sp.reset === "1";
 
   return (

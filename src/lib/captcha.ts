@@ -9,12 +9,13 @@ import {
 /**
  * Abuse / CAPTCHA helpers.
  *
- * Hosted (DATABASE_URL set): Cloudflare Turnstile is required. There is no
- * math-puzzle fallback in production — bind TURNSTILE_SITE_KEY +
- * TURNSTILE_SECRET_KEY.
+ * Prefer Cloudflare Turnstile when TURNSTILE_SITE_KEY + TURNSTILE_SECRET_KEY
+ * are set (bind as app secrets). Otherwise use a signed math challenge plus a
+ * small proof-of-work so signup/signin always require a non-trivial check —
+ * including hosted when Turnstile is not bound yet.
  *
- * Local (no DATABASE_URL): Cloudflare always-pass test keys, or a signed
- * math challenge + small proof-of-work if Turnstile env is unset.
+ * Cloudflare always-pass test keys are used only when DATABASE_URL is unset
+ * (local PGlite), never as a production fallback.
  */
 
 const MATH_TTL_MS = 10 * 60 * 1000;
@@ -187,18 +188,11 @@ async function verifyTurnstile(
   }
 }
 
-/** True when a usable CAPTCHA can be shown (Turnstile, or local math only). */
-export function captchaConfigured(): boolean {
-  if (getTurnstileSiteKey()) return true;
-  // Math fallback is local-only.
-  return !process.env.DATABASE_URL?.trim();
-}
-
 /**
  * Validate human checks on auth forms:
  * 1) Honeypot must be empty
  * 2) Form must not submit instantly (min dwell)
- * 3) Turnstile when configured; math + PoW only on local (no DATABASE_URL)
+ * 3) Turnstile token when site key is active, else math + PoW
  */
 export async function assertHuman(
   formData: FormData,
@@ -226,14 +220,6 @@ export async function assertHuman(
         ? String(formData.get("cf-turnstile-response")).trim()
         : "";
     return verifyTurnstile(token, ip);
-  }
-
-  // Hosted Postgres: never fall back to the weaker math puzzle.
-  if (process.env.DATABASE_URL?.trim()) {
-    return {
-      ok: false,
-      error: "Sign-up protection is temporarily unavailable. Try again later.",
-    };
   }
 
   const mathToken =
