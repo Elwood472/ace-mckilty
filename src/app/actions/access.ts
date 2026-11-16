@@ -14,7 +14,7 @@ import {
 import { ensurePersonalList, getPersonalListId } from "@/lib/lists";
 import { checkRateLimit } from "@/lib/rate-limit";
 import { getClientIp } from "@/lib/client-ip";
-import { appBaseUrl } from "@/lib/app-url";
+import { absoluteAppUrl } from "@/lib/app-url";
 
 function s(fd: FormData, key: string): string {
   const v = fd.get(key);
@@ -22,10 +22,6 @@ function s(fd: FormData, key: string): string {
 }
 
 export type ActionState = { error?: string; ok?: string };
-
-function inviteBaseUrl(): string {
-  return appBaseUrl();
-}
 
 export async function createListEmailInvite(
   _prev: ActionState,
@@ -115,13 +111,12 @@ export async function createListEmailInvite(
       [listId],
     );
     const { inviteEmailBody, sendEmail } = await import("@/lib/email");
-    const base = inviteBaseUrl();
     const invitePath = `/invite/${token}`;
-    const inviteUrl = base ? `${base.replace(/\/$/, "")}${invitePath}` : invitePath;
+    const inviteUrl = absoluteAppUrl(invitePath);
     const mail = inviteEmailBody({
       listTitle: list[0]?.title ?? "a wish list",
       inviterName: user.display_name,
-      inviteUrl: base ? inviteUrl : `(open in the app) ${invitePath}`,
+      inviteUrl,
     });
     const sent = await sendEmail({
       to: email,
@@ -134,12 +129,12 @@ export async function createListEmailInvite(
     revalidatePath("/dashboard");
     if (!sent.ok) {
       return {
-        ok: `Invite created (${invitePath}), but email failed: ${sent.error}`,
+        ok: `Invite created (${inviteUrl}), but email failed: ${sent.error}`,
       };
     }
     if (sent.mode === "stub") {
       return {
-        ok: `Invite created. Email stubbed (set RESEND_API_KEY to send). Invite link: ${invitePath}`,
+        ok: `Invite created. Email stubbed (set RESEND_API_KEY to send). Invite link: ${inviteUrl}`,
       };
     }
     return { ok: `Invite emailed to ${email}.` };
@@ -321,11 +316,7 @@ export async function requestListAccess(
       [listId],
     );
     const { accessRequestEmailBody, sendEmail } = await import("@/lib/email");
-    const base = inviteBaseUrl();
-    const reviewPath = `/lists/${listId}`;
-    const reviewUrl = base
-      ? `${base.replace(/\/$/, "")}${reviewPath}`
-      : `(open in the app) ${reviewPath}`;
+    const reviewUrl = absoluteAppUrl(`/lists/${listId}`);
     const mail = accessRequestEmailBody({
       listTitle: listMeta[0]?.title ?? "a wish list",
       requesterName: user.display_name,
