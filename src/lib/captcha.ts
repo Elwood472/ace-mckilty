@@ -14,6 +14,10 @@ import {
  * small proof-of-work so signup/signin always require a non-trivial check —
  * including hosted when Turnstile is not bound yet.
  *
+ * On hosted Postgres, the math HMAC key is stored once in app_runtime_secrets
+ * so every worker verifies the same challenges. Local (no DATABASE_URL) uses a
+ * process-lifetime key. Optional CAPTCHA_HMAC_SECRET overrides both.
+ *
  * Cloudflare always-pass test keys are used only when DATABASE_URL is unset
  * (local PGlite), never as a production fallback.
  */
@@ -23,28 +27,59 @@ const MATH_TTL_MS = 10 * 60 * 1000;
 /** Keep low enough for browsers; raised slightly to slow naive bots. */
 const POW_DIFFICULTY = 4;
 const MIN_DWELL_MS = 3000;
+const DB_SECRET_NAME = "captcha_hmac";
 
-/** Process-lifetime secret when no env secret is bound (never a shipped literal). */
+/** Process-lifetime secret when no env/DB secret is bound (local only). */
 let runtimeSecret: Buffer | null = null;
+/** Cache the DB-backed secret after first load (per worker). */
+let dbSecretCache: Buffer | null = null;
 
-function hmacSecretBytes(): Buffer {
+async function hmacSecretBytes(): Promise<Buffer> {
   const fromEnv =
     process.env.CAPTCHA_HMAC_SECRET?.trim() ||
     process.env.CSRF_SECRET?.trim() ||
     process.env.TURNSTILE_SECRET_KEY?.trim();
   if (fromEnv) return Buffer.from(fromEnv, "utf8");
-  // Process-lifetime only — never derive from DATABASE_URL (predictable).
-  // Bind CAPTCHA_HMAC_SECRET (or Turnstile) so all workers share one key.
-  if (!runtimeSecret) {
-    runtimeSecret = randomBytes(32);
+
+  // Local PGlite: process-lifetime key is fine (single process).
+  if (!process.env.DATABASE_URL?.trim()) {
+    if (!runtimeSecret) {
+      runtimeSecret = randomBytes(32);
+    }
+    return runtimeSecret;
   }
-  return runtimeSecret;
+
+  if (dbSecretCache) return dbSecretCache;
+
+  const { sql } = await import("@/lib/db");
+  const existing = await sql<{ value: string }>(
+    `select value from app_runtime_secrets where name = $1`,
+    [DB_SECRET_NAME],
+  );
+  if (existing[0]?.value) {
+    dbSecretCache = Buffer.from(existing[0].value, "hex");
+    return dbSecretCache;
+  }
+
+  const generated = randomBytes(32).toString("hex");
+  await sql(
+    `insert into app_runtime_secrets (name, value)
+     values ($1, $2)
+     on conflict (name) do nothing`,
+    [DB_SECRET_NAME, generated],
+  );
+  const again = await sql<{ value: string }>(
+    `select value from app_runtime_secrets where name = $1`,
+    [DB_SECRET_NAME],
+  );
+  const value = again[0]?.value ?? generated;
+  dbSecretCache = Buffer.from(value, "hex");
+  return dbSecretCache;
 }
 
-function sign(payload: string): string {
-  return createHmac("sha256", hmacSecretBytes())
-    .update(payload)
-    .digest("base64url");
+async function sign(payload: string): Promise<string> {
+  const key = await hmacSecretBytes();
+  return createHmac("sha256", key).update(payload).digest("base64url");
 }
 
 function safeEqual(a: string, b: string): boolean {
@@ -85,7 +120,7 @@ export type MathChallenge = {
  * Token carries expiry + nonce + HMAC(answer) — operands are NOT in the token.
  * Client must also solve a small PoW against powSalt.
  */
-export function issueMathChallenge(): MathChallenge {
+export async function issueMathChallenge(): Promise<MathChallenge> {
   const a = 11 + randomInt(0, 29); // 11..39
   const b = 11 + randomInt(0, 29);
   const op = randomInt(0, 2); // 0 add, 1 subtract (non-negative)
@@ -103,7 +138,7 @@ export function issueMathChallenge(): MathChallenge {
   const exp = Date.now() + MATH_TTL_MS;
   const nonce = randomBytes(16).toString("base64url");
   const body = `v2.${exp}.${nonce}`;
-  const sig = sign(`${body}.${answer}`);
+  const sig = await sign(`${body}.${answer}`);
   const token = `${body}.${sig}`;
   const powSalt = randomBytes(16).toString("base64url");
   return {
@@ -129,12 +164,12 @@ function verifyPow(
   return digest.startsWith("0".repeat(difficulty));
 }
 
-function verifyMathChallenge(
+async function verifyMathChallenge(
   token: string,
   answerRaw: string,
   powSalt: string,
   powNonce: string,
-): boolean {
+): Promise<boolean> {
   if (!verifyPow(powSalt, powNonce, POW_DIFFICULTY)) return false;
 
   const parts = token.split(".");
@@ -148,7 +183,7 @@ function verifyMathChallenge(
   if (!Number.isInteger(answer) || answer < 0 || answer > 200) return false;
 
   const body = `v2.${expStr}.${nonce}`;
-  const expected = sign(`${body}.${answer}`);
+  const expected = await sign(`${body}.${answer}`);
   return safeEqual(expected, sig);
 }
 
@@ -238,7 +273,7 @@ export async function assertHuman(
     typeof formData.get("captcha_pow_nonce") === "string"
       ? String(formData.get("captcha_pow_nonce"))
       : "";
-  if (!verifyMathChallenge(mathToken, mathAnswer, powSalt, powNonce)) {
+  if (!(await verifyMathChallenge(mathToken, mathAnswer, powSalt, powNonce))) {
     return {
       ok: false,
       error: "CAPTCHA answer was wrong or expired. Refresh and try again.",

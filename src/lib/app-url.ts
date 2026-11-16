@@ -1,7 +1,8 @@
 /**
  * Absolute public origin for outbound links (invites, password reset).
- * Prefer APP_BASE_URL when it is a real https origin; otherwise the
- * friendly custom domain, then the hosted app host.
+ * Prefer APP_BASE_URL when it is a real https origin.
+ * Default to the hosted app host — Squarespace apex forwarding currently
+ * strips paths, so ace-mckilty.com/invite/... would drop to "/".
  */
 export function appBaseUrl(): string {
   const fromEnv =
@@ -18,7 +19,7 @@ export function appBaseUrl(): string {
       // ignore invalid override
     }
   }
-  return "https://ace-mckilty.com";
+  return "https://ace-mckilty.apps.grok.bot";
 }
 
 export function absoluteAppUrl(path: string): string {

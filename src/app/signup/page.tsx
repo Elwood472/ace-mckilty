@@ -13,7 +13,7 @@ export default async function SignupPage() {
   }
   const csrf = await ensureCsrfToken();
   const turnstileSiteKey = getTurnstileSiteKey();
-  const mathChallenge = turnstileSiteKey ? null : issueMathChallenge();
+  const mathChallenge = turnstileSiteKey ? null : await issueMathChallenge();
 
   return (
     <>

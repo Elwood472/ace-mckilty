@@ -11,7 +11,7 @@ export default async function ForgotPasswordPage() {
 
   const csrf = await ensureCsrfToken();
   const turnstileSiteKey = getTurnstileSiteKey();
-  const mathChallenge = !turnstileSiteKey ? issueMathChallenge() : null;
+  const mathChallenge = !turnstileSiteKey ? await issueMathChallenge() : null;
 
   return (
     <>

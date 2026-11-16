@@ -25,7 +25,7 @@ export default async function LoginPage({
   const needsCaptcha = await loginCaptchaRequired(ip);
   const turnstileSiteKey = needsCaptcha ? getTurnstileSiteKey() : null;
   const mathChallenge =
-    needsCaptcha && !turnstileSiteKey ? issueMathChallenge() : null;
+    needsCaptcha && !turnstileSiteKey ? await issueMathChallenge() : null;
   const resetOk = sp.reset === "1";
 
   return (
