@@ -1,12 +1,33 @@
 import type { NextConfig } from "next";
 
+/** Public hosts that may POST Server Actions (exact hosts, no wildcards). */
+function serverActionOrigins(): string[] {
+  const hosts = new Set([
+    "ace-mckilty.apps.grok.bot",
+    "ace-mckilty.com",
+    "www.ace-mckilty.com",
+  ]);
+  for (const raw of [
+    process.env.APP_BASE_URL,
+    process.env.NEXT_PUBLIC_APP_URL,
+  ]) {
+    const value = raw?.trim();
+    if (!value) continue;
+    try {
+      hosts.add(new URL(value).host);
+    } catch {
+      // ignore invalid override
+    }
+  }
+  return [...hosts];
+}
+
 const nextConfig: NextConfig = {
   // Cursor App Hosting proxies the public host; without this, Next.js aborts
   // every Server Action with a CSRF origin mismatch (login/signup → ERROR page).
   experimental: {
     serverActions: {
-      // Exact public host only — no wildcard apps.grok.bot origins.
-      allowedOrigins: ["ace-mckilty.apps.grok.bot"],
+      allowedOrigins: serverActionOrigins(),
     },
   },
   serverExternalPackages: ["@electric-sql/pglite"],

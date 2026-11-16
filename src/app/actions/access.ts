@@ -55,21 +55,22 @@ export async function createListEmailInvite(
     ) {
       return { error: "Too many invites. Try again later." };
     }
+    // Per-user + per-IP only — no shared global that one account can burn for everyone.
+    if (
+      !(await checkRateLimit(`outbound-email-user:${user.id}`, {
+        maxHits: 30,
+        windowMs: 60 * 60 * 1000,
+      }))
+    ) {
+      return { error: "Too many emails from this account. Try again later." };
+    }
     if (
       !(await checkRateLimit(`outbound-email-ip:${ip}`, {
-        maxHits: 20,
+        maxHits: 40,
         windowMs: 60 * 60 * 1000,
       }))
     ) {
       return { error: "Too many emails from this network. Try again later." };
-    }
-    if (
-      !(await checkRateLimit(`outbound-email-global`, {
-        maxHits: 80,
-        windowMs: 60 * 60 * 1000,
-      }))
-    ) {
-      return { error: "Email sending is temporarily limited. Try again later." };
     }
     if (
       !(await checkRateLimit(`create-invite-day:${user.id}`, {
@@ -252,20 +253,20 @@ export async function requestListAccess(
       return { error: "Too many requests. Try again later." };
     }
     if (
+      !(await checkRateLimit(`outbound-email-user:${user.id}`, {
+        maxHits: 30,
+        windowMs: 60 * 60 * 1000,
+      }))
+    ) {
+      return { error: "Too many emails from this account. Try again later." };
+    }
+    if (
       !(await checkRateLimit(`outbound-email-ip:${ip}`, {
-        maxHits: 8,
+        maxHits: 40,
         windowMs: 60 * 60 * 1000,
       }))
     ) {
       return { error: "Too many emails from this network. Try again later." };
-    }
-    if (
-      !(await checkRateLimit(`outbound-email-global`, {
-        maxHits: 80,
-        windowMs: 60 * 60 * 1000,
-      }))
-    ) {
-      return { error: "Email sending is temporarily limited. Try again later." };
     }
     const age = await sql<{ created_at: string }>(
       "select created_at::text as created_at from users where id = $1",

@@ -1,8 +1,9 @@
 /**
  * Absolute public origin for outbound links (invites, password reset).
- * Prefer APP_BASE_URL when it is a real https origin.
- * Default to the hosted app host — Squarespace apex forwarding currently
- * strips paths, so ace-mckilty.com/invite/... would drop to "/".
+ * Prefer APP_BASE_URL / NEXT_PUBLIC_APP_URL when set to a real https origin.
+ * Fallback is the Cursor-hosted app host (path-preserving). Apex
+ * ace-mckilty.com forwarding currently strips paths — only set APP_BASE_URL
+ * to that domain after Squarespace "Maintain paths" works end-to-end.
  */
 export function appBaseUrl(): string {
   const fromEnv =
@@ -19,6 +20,8 @@ export function appBaseUrl(): string {
       // ignore invalid override
     }
   }
+  // Hosted default — override with APP_BASE_URL when the public brand URL
+  // preserves paths (invites / reset links must not land on "/").
   return "https://ace-mckilty.apps.grok.bot";
 }
 

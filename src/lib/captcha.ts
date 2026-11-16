@@ -24,9 +24,10 @@ import {
 
 const MATH_TTL_MS = 10 * 60 * 1000;
 /** Hex leading zeros required of sha256(`${powSalt}:${powNonce}`). */
-/** Keep low enough for browsers; raised slightly to slow naive bots. */
-const POW_DIFFICULTY = 4;
-const MIN_DWELL_MS = 3000;
+/** ~1M hash trials expected; still fine in-browser, expensive for naive bots. */
+const POW_DIFFICULTY = 5;
+/** Prefer Turnstile in production — set TURNSTILE_SITE_KEY + TURNSTILE_SECRET_KEY. */
+const MIN_DWELL_MS = 4000;
 const DB_SECRET_NAME = "captcha_hmac";
 
 /** Process-lifetime secret when no env/DB secret is bound (local only). */

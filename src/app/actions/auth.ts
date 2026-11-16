@@ -10,11 +10,7 @@ import { createSession, destroySession } from "@/lib/session";
 import { safeInternalPath } from "@/lib/url-safety";
 import { getClientIp } from "@/lib/client-ip";
 import { assertHuman } from "@/lib/captcha";
-import {
-  loginCaptchaRequired,
-  SIGNIN_FAIL_WINDOW,
-  signInFailKey,
-} from "@/lib/login-captcha";
+import { SIGNIN_FAIL_WINDOW, signInFailKey } from "@/lib/login-captcha";
 
 const credentials = z.object({
   email: z.string().email().max(320),
@@ -121,11 +117,9 @@ export async function signIn(
   try {
     const ip = await getClientIp();
     const failKey = signInFailKey(ip);
-    // CAPTCHA only after repeated failures — normal logins stay friction-free.
-    if (await loginCaptchaRequired(ip)) {
-      const human = await assertHuman(formData, ip);
-      if (!human.ok) return { error: human.error };
-    }
+    // Always require a human check on login (same bar as signup / reset).
+    const human = await assertHuman(formData, ip);
+    if (!human.ok) return { error: human.error };
 
     const email = formString(formData, "email").toLowerCase();
     const password = formString(formData, "password");
