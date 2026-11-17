@@ -8,6 +8,7 @@ import { hashPassword, verifyPassword } from "@/lib/password";
 import { ALL_QUESTIONNAIRE } from "@/lib/profile-fields";
 import { destroyOtherSessions } from "@/lib/session";
 import { normalizeStoredHttpUrl } from "@/lib/url-safety";
+import { DISPLAY_NAME_MAX, sanitizePublicLabel } from "@/lib/text";
 
 function s(fd: FormData, key: string): string {
   const v = fd.get(key);
@@ -23,8 +24,15 @@ export async function updateProfile(
   try {
     await assertCsrf(formData.get("csrf"));
     const user = await requireUser();
-    const displayName = s(formData, "displayName");
-    if (!displayName) return { error: "Display name is required." };
+    const displayName = sanitizePublicLabel(
+      s(formData, "displayName"),
+      DISPLAY_NAME_MAX,
+    );
+    if (!displayName) {
+      return {
+        error: `Display name is required (max ${DISPLAY_NAME_MAX} characters).`,
+      };
+    }
 
     const birthday = s(formData, "birthday") || null;
     const password = s(formData, "password");

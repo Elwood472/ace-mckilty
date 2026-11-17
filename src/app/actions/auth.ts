@@ -11,11 +11,12 @@ import { safeInternalPath } from "@/lib/url-safety";
 import { getClientIp } from "@/lib/client-ip";
 import { assertHuman } from "@/lib/captcha";
 import { SIGNIN_FAIL_WINDOW, signInFailKey } from "@/lib/login-captcha";
+import { DISPLAY_NAME_MAX, sanitizePublicLabel } from "@/lib/text";
 
 const credentials = z.object({
   email: z.string().email().max(320),
   password: z.string().min(8).max(200),
-  displayName: z.string().min(1).max(80).optional(),
+  displayName: z.string().min(1).max(DISPLAY_NAME_MAX).optional(),
 });
 
 function formString(fd: FormData, key: string): string {
@@ -43,7 +44,10 @@ export async function signUp(
 
     const email = formString(formData, "email").toLowerCase();
     const password = formString(formData, "password");
-    const displayName = formString(formData, "displayName");
+    const displayName = sanitizePublicLabel(
+      formString(formData, "displayName"),
+      DISPLAY_NAME_MAX,
+    );
 
     const parsed = credentials.safeParse({ email, password, displayName });
     if (!parsed.success || !displayName) {
@@ -52,12 +56,20 @@ export async function signUp(
       };
     }
 
-    // Cap account creation per IP and per email (bcrypt is expensive).
-    // No low global cap — that lets one attacker block every new signup.
+    // Cap account creation per IP (hourly + daily) and per email.
+    // CAPTCHA/Turnstile already required via assertHuman above.
     if (
       !(await checkRateLimit(`signup-ip:${ip}`, {
         maxHits: 3,
         windowMs: 60 * 60 * 1000,
+      }))
+    ) {
+      return { error: "Too many attempts. Try again later." };
+    }
+    if (
+      !(await checkRateLimit(`signup-ip-day:${ip}`, {
+        maxHits: 6,
+        windowMs: 24 * 60 * 60 * 1000,
       }))
     ) {
       return { error: "Too many attempts. Try again later." };

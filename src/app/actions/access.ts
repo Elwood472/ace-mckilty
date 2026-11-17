@@ -37,11 +37,25 @@ export async function createListEmailInvite(
       return { error: "Enter a valid email." };
     }
     const ip = await getClientIp();
-    // Limits: open sign-up must not turn Resend into a spam relay, but a
-    // normal gift-list owner needs room to invite family/friends.
+    // requireUser already mandates 2FA enrollment (legitimate activity gate).
+    // Extra age gate: brand-new accounts cannot blast invites immediately.
+    const age = await sql<{ created_at: string }>(
+      "select created_at::text as created_at from users where id = $1",
+      [user.id],
+    );
+    const createdMs = age[0] ? new Date(age[0].created_at).getTime() : 0;
+    const accountAgeMs = Date.now() - createdMs;
+    if (accountAgeMs < 15 * 60 * 1000) {
+      return {
+        error:
+          "Finish setting up your account, then try inviting again in a few minutes.",
+      };
+    }
+
+    // Tight per-user / per-IP caps — open signup must not turn Resend into a spam relay.
     if (
       !(await checkRateLimit(`create-invite:${user.id}`, {
-        maxHits: 8,
+        maxHits: 5,
         windowMs: 15 * 60 * 1000,
       }))
     ) {
@@ -49,16 +63,15 @@ export async function createListEmailInvite(
     }
     if (
       !(await checkRateLimit(`create-invite-ip:${ip}`, {
-        maxHits: 12,
+        maxHits: 8,
         windowMs: 15 * 60 * 1000,
       }))
     ) {
       return { error: "Too many invites. Try again later." };
     }
-    // Per-user + per-IP only — no shared global that one account can burn for everyone.
     if (
       !(await checkRateLimit(`outbound-email-user:${user.id}`, {
-        maxHits: 30,
+        maxHits: 12,
         windowMs: 60 * 60 * 1000,
       }))
     ) {
@@ -66,30 +79,25 @@ export async function createListEmailInvite(
     }
     if (
       !(await checkRateLimit(`outbound-email-ip:${ip}`, {
-        maxHits: 40,
+        maxHits: 20,
         windowMs: 60 * 60 * 1000,
       }))
     ) {
       return { error: "Too many emails from this network. Try again later." };
     }
+    const dayCap = accountAgeMs < 7 * 24 * 60 * 60 * 1000 ? 8 : 20;
     if (
       !(await checkRateLimit(`create-invite-day:${user.id}`, {
-        maxHits: 20,
+        maxHits: dayCap,
         windowMs: 24 * 60 * 60 * 1000,
       }))
     ) {
       return { error: "Daily invite limit reached. Try again tomorrow." };
     }
-    // New accounts: generous enough for a household list, still capped.
-    const age = await sql<{ created_at: string }>(
-      "select created_at::text as created_at from users where id = $1",
-      [user.id],
-    );
-    const createdMs = age[0] ? new Date(age[0].created_at).getTime() : 0;
-    if (Date.now() - createdMs < 48 * 60 * 60 * 1000) {
+    if (accountAgeMs < 48 * 60 * 60 * 1000) {
       if (
         !(await checkRateLimit(`create-invite-new:${user.id}`, {
-          maxHits: 15,
+          maxHits: 5,
           windowMs: 48 * 60 * 60 * 1000,
         }))
       ) {
@@ -254,7 +262,7 @@ export async function requestListAccess(
     }
     if (
       !(await checkRateLimit(`outbound-email-user:${user.id}`, {
-        maxHits: 30,
+        maxHits: 12,
         windowMs: 60 * 60 * 1000,
       }))
     ) {
@@ -262,7 +270,7 @@ export async function requestListAccess(
     }
     if (
       !(await checkRateLimit(`outbound-email-ip:${ip}`, {
-        maxHits: 40,
+        maxHits: 20,
         windowMs: 60 * 60 * 1000,
       }))
     ) {
@@ -273,10 +281,16 @@ export async function requestListAccess(
       [user.id],
     );
     const createdMs = age[0] ? new Date(age[0].created_at).getTime() : 0;
+    if (Date.now() - createdMs < 15 * 60 * 1000) {
+      return {
+        error:
+          "Finish setting up your account, then try again in a few minutes.",
+      };
+    }
     if (Date.now() - createdMs < 24 * 60 * 60 * 1000) {
       if (
         !(await checkRateLimit(`access-req-new:${user.id}`, {
-          maxHits: 3,
+          maxHits: 2,
           windowMs: 24 * 60 * 60 * 1000,
         }))
       ) {

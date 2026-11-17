@@ -117,7 +117,7 @@ export function AuthForm({
             name="displayName"
             className="field"
             required
-            maxLength={80}
+            maxLength={60}
             autoComplete="name"
           />
         </div>
