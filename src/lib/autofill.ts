@@ -200,6 +200,24 @@ function priceForProduct(
       }
     }
 
+    // Shopify storefront JSON: "handle":"<slug>" … "price":4900 (integer cents).
+    const shopifyCents = body.match(
+      new RegExp(
+        `"handle"\\s*:\\s*"${slugEsc}"[\\s\\S]{0,2500}?"price"\\s*:\\s*(\\d{2,7})\\b`,
+        "i",
+      ),
+    );
+    if (shopifyCents) {
+      const cents = Number(shopifyCents[1]);
+      if (Number.isFinite(cents) && cents >= 0 && cents <= 10_000_000) {
+        return {
+          amount: cents / 100,
+          currency: "USD",
+          clearlyForeign: false,
+        };
+      }
+    }
+
     // Window around slug occurrences — lowercase once; cap scans (DoS guard).
     const lowerBody = body.toLowerCase();
     const needle = slug.toLowerCase();
@@ -664,10 +682,10 @@ export async function autofillFromGiftUrl(url: string): Promise<AutofillResult> 
 
   try {
     const res = await fetchPublicHttp(pageUrl, {
-      timeoutMs: 5000,
+      timeoutMs: 10000,
       headers: {
         "User-Agent":
-          "Mozilla/5.0 (compatible; AceMcKiltyGiftRegistry/1.0; +local)",
+          "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
         Accept: "text/html,application/xhtml+xml",
       },
     });
@@ -676,7 +694,8 @@ export async function autofillFromGiftUrl(url: string): Promise<AutofillResult> 
       return out;
     }
     // Cap HTML parse size to limit memory / CPU on crafted pages.
-    const html = (await res.text()).slice(0, 350_000);
+    // Keep enough for Shopify `var meta` product JSON (often past 400KB).
+    const html = (await res.text()).slice(0, 750_000);
     const ogTitle =
       metaContent(html, "og:title") ||
       metaContent(html, "twitter:title") ||

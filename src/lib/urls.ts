@@ -140,7 +140,8 @@ export async function assertPublicHttpUrl(raw: string): Promise<URL> {
 }
 
 const MAX_REDIRECTS = 3;
-const MAX_BODY_BYTES = 400_000;
+/** Soft cap — keep the first N bytes instead of failing (Shopify pages often exceed 400KB). */
+const MAX_BODY_BYTES = 750_000;
 
 function headerRecord(
   headersInit?: HeadersInit,
@@ -175,6 +176,37 @@ function requestPinned(
   headers.host = target.host;
 
   return new Promise((resolve, reject) => {
+    let done = false;
+    let truncated = false;
+    let timer: ReturnType<typeof setTimeout> | null = null;
+
+    const succeed = (body: Buffer, status: number, statusText: string, resHeaders: IncomingMessage["headers"]) => {
+      if (done) return;
+      done = true;
+      if (timer) clearTimeout(timer);
+      const hdrs = new Headers();
+      for (const [k, v] of Object.entries(resHeaders)) {
+        if (v == null) continue;
+        if (Array.isArray(v)) v.forEach((item) => hdrs.append(k, item));
+        else hdrs.set(k, v);
+      }
+      if (truncated) hdrs.set("x-fetch-truncated", "1");
+      resolve(
+        new Response(body, {
+          status,
+          statusText,
+          headers: hdrs,
+        }),
+      );
+    };
+
+    const fail = (err: Error) => {
+      if (done) return;
+      done = true;
+      if (timer) clearTimeout(timer);
+      reject(err);
+    };
+
     const req = lib.request(
       {
         protocol: target.protocol,
@@ -197,38 +229,42 @@ function requestPinned(
       (res: IncomingMessage) => {
         const chunks: Buffer[] = [];
         let size = 0;
+        const finish = () => {
+          succeed(
+            Buffer.concat(chunks),
+            res.statusCode ?? 0,
+            res.statusMessage ?? "",
+            res.headers,
+          );
+        };
         res.on("data", (chunk: Buffer) => {
-          size += chunk.length;
-          if (size > MAX_BODY_BYTES) {
+          if (done || truncated) return;
+          const room = MAX_BODY_BYTES - size;
+          if (chunk.length > room) {
+            if (room > 0) chunks.push(chunk.subarray(0, room));
+            size = MAX_BODY_BYTES;
+            truncated = true;
+            // Soft-truncate: keep the prefix instead of failing huge Shopify pages.
+            finish();
             req.destroy();
-            reject(new Error("Response too large"));
             return;
           }
+          size += chunk.length;
           chunks.push(chunk);
         });
         res.on("end", () => {
-          const body = Buffer.concat(chunks);
-          const hdrs = new Headers();
-          for (const [k, v] of Object.entries(res.headers)) {
-            if (v == null) continue;
-            if (Array.isArray(v)) v.forEach((item) => hdrs.append(k, item));
-            else hdrs.set(k, v);
-          }
-          resolve(
-            new Response(body, {
-              status: res.statusCode ?? 0,
-              statusText: res.statusMessage,
-              headers: hdrs,
-            }),
-          );
+          if (!truncated) finish();
         });
-        res.on("error", reject);
+        res.on("error", (err) => {
+          if (truncated || done) return;
+          fail(err instanceof Error ? err : new Error(String(err)));
+        });
       },
     );
 
     const onAbort = () => {
       req.destroy();
-      reject(new Error("Aborted"));
+      fail(new Error("Aborted"));
     };
     if (init.signal) {
       if (init.signal.aborted) {
@@ -237,12 +273,15 @@ function requestPinned(
       }
       init.signal.addEventListener("abort", onAbort, { once: true });
     }
-    const timer = setTimeout(() => {
+    timer = setTimeout(() => {
       req.destroy();
-      reject(new Error("Timeout"));
+      fail(new Error("Timeout"));
     }, init.timeoutMs);
-    req.on("error", reject);
-    req.on("close", () => clearTimeout(timer));
+    req.on("error", (err) => {
+      // Intentional destroy after soft-truncate must not reject.
+      if (truncated || done) return;
+      fail(err instanceof Error ? err : new Error(String(err)));
+    });
     req.end();
   });
 }
