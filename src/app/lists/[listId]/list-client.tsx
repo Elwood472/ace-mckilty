@@ -1,7 +1,13 @@
 "use client";
 
 import Link from "next/link";
-import { useActionState, useEffect, useRef, useState } from "react";
+import {
+  Fragment,
+  useActionState,
+  useEffect,
+  useRef,
+  useState,
+} from "react";
 import {
   autofillItemFromUrl,
   createItem,
@@ -220,15 +226,29 @@ export function ItemTable({
           </tr>
         </thead>
         <tbody>
-          {items.map((item) => (
-            <ItemRow
-              key={item.id}
-              item={item}
-              owner={owner}
-              csrf={csrf}
-              listId={listId}
-            />
-          ))}
+          {items.map((item, index) => {
+            const catLabel = item.category?.trim() || "Uncategorized";
+            const prevLabel =
+              index === 0
+                ? null
+                : items[index - 1].category?.trim() || "Uncategorized";
+            const showCategoryBreak = index === 0 || catLabel !== prevLabel;
+            return (
+              <Fragment key={item.id}>
+                {showCategoryBreak ? (
+                  <tr className="category-section">
+                    <td colSpan={7}>{catLabel}</td>
+                  </tr>
+                ) : null}
+                <ItemRow
+                  item={item}
+                  owner={owner}
+                  csrf={csrf}
+                  listId={listId}
+                />
+              </Fragment>
+            );
+          })}
         </tbody>
       </table>
     </div>

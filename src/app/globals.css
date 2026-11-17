@@ -154,6 +154,17 @@ a:active {
   padding: 0;
 }
 
+.legacy-table tr.category-section td {
+  background: var(--mist);
+  color: var(--navy);
+  font-weight: 700;
+  font-size: 13px;
+  text-align: left;
+  padding: 7px 10px;
+  border: 1px solid var(--border);
+  border-top-width: 2px;
+}
+
 .legacy-table .group-name {
   font-weight: 700;
 }
