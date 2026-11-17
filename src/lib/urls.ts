@@ -191,8 +191,10 @@ function requestPinned(
         else hdrs.set(k, v);
       }
       if (truncated) hdrs.set("x-fetch-truncated", "1");
+      // Copy into a plain ArrayBuffer-backed Uint8Array for Response BodyInit typing.
+      const bytes = Uint8Array.from(body);
       resolve(
-        new Response(body, {
+        new Response(bytes, {
           status,
           statusText,
           headers: hdrs,
