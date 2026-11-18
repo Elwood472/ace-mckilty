@@ -5,21 +5,24 @@ import { sql } from "@/lib/db";
 import { getCurrentUser, ensureTwoFactorEnrolled } from "@/lib/session";
 import type { User } from "@/lib/types";
 
-/** Default operator; override/extend with ADMIN_EMAILS (comma-separated). */
-const DEFAULT_ADMIN_EMAILS = ["bluesbrthr@gmail.com"];
-
+/**
+ * Operator emails from ADMIN_EMAILS (comma-separated).
+ * No shipped default — if unset, nobody has admin access.
+ * Bind ADMIN_EMAILS as an app secret for the published host.
+ */
 export function adminEmailAllowlist(): string[] {
   const fromEnv = (process.env.ADMIN_EMAILS ?? "")
     .split(",")
     .map((e) => e.trim().toLowerCase())
     .filter(Boolean);
-  const merged = fromEnv.length ? fromEnv : DEFAULT_ADMIN_EMAILS;
-  return [...new Set(merged)];
+  return [...new Set(fromEnv)];
 }
 
 export function isAdminEmail(email: string | null | undefined): boolean {
   if (!email) return false;
-  return adminEmailAllowlist().includes(email.trim().toLowerCase());
+  const allow = adminEmailAllowlist();
+  if (allow.length === 0) return false;
+  return allow.includes(email.trim().toLowerCase());
 }
 
 export async function requireAdmin(): Promise<User> {
