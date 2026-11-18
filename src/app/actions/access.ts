@@ -33,9 +33,37 @@ export async function createListEmailInvite(
     const listId = s(formData, "listId");
     const email = s(formData, "email").toLowerCase();
     await requireListOwner(listId, user.id);
-    if (!email || !email.includes("@")) {
+    if (!email || !email.includes("@") || !email.includes(".")) {
       return { error: "Enter a valid email." };
     }
+
+    // Don't pile up invites for people who already have access.
+    const already = await sql(
+      `select 1
+       where exists (
+         select 1 from wish_list_owners o
+         join users u on u.id = o.user_id
+         where o.list_id = $1 and lower(u.email) = $2
+       ) or exists (
+         select 1 from list_access a
+         join users u on u.id = a.user_id
+         where a.list_id = $1 and lower(u.email) = $2
+       )`,
+      [listId, email],
+    );
+    if (already.length) {
+      // Clear any leftover open invites for this email on this list.
+      await sql(
+        `update list_invites
+         set accepted_at = coalesce(accepted_at, now())
+         where list_id = $1 and email is not null and lower(email) = $2
+           and accepted_at is null`,
+        [listId, email],
+      );
+      revalidatePath(`/lists/${listId}`);
+      return { ok: "That person already has access to this list." };
+    }
+
     const ip = await getClientIp();
     // requireUser already mandates 2FA enrollment (legitimate activity gate).
     // Extra age gate: brand-new accounts cannot blast invites immediately.
@@ -417,6 +445,18 @@ export async function decideAccessRequest(
         `update list_access_requests
          set status = 'approved', decided_at = now() where id = $1`,
         [requestId],
+      );
+      // Retire any open email invites for this person on this list.
+      await sql(
+        `update list_invites i
+         set accepted_at = coalesce(i.accepted_at, now())
+         from users u
+         where i.list_id = $1
+           and u.id = $2
+           and i.email is not null
+           and lower(i.email) = lower(u.email)
+           and i.accepted_at is null`,
+        [req.list_id, req.requester_id],
       );
       revalidatePath("/dashboard");
       revalidatePath(`/lists/${req.list_id}`);

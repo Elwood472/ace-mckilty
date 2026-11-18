@@ -89,10 +89,27 @@ export default async function ListPage({ params, searchParams }: Props) {
         token: string;
         created_at: string;
       }>(
-        `select email, token, created_at::text as created_at
-         from list_invites
-         where list_id = $1 and accepted_at is null and expires_at > now()
-         order by created_at desc
+        `select i.email, i.token, i.created_at::text as created_at
+         from list_invites i
+         where i.list_id = $1
+           and i.accepted_at is null
+           and i.expires_at > now()
+           -- Hide invites for people who already own or can view this list.
+           and not exists (
+             select 1 from wish_list_owners o
+             join users u on u.id = o.user_id
+             where o.list_id = i.list_id
+               and i.email is not null
+               and lower(u.email) = lower(i.email)
+           )
+           and not exists (
+             select 1 from list_access a
+             join users u on u.id = a.user_id
+             where a.list_id = i.list_id
+               and i.email is not null
+               and lower(u.email) = lower(i.email)
+           )
+         order by i.created_at desc
          limit 8`,
         [listId],
       )
