@@ -5,17 +5,14 @@ import { useActionState, useEffect, useState } from "react";
 import {
   createListEmailInvite,
   decideAccessRequest,
-  lookupPersonByEmail,
-  requestListAccess,
+  requestListAccessByEmail,
   type ActionState,
-  type PersonLookupState,
 } from "@/app/actions/access";
 import { createTogetherList } from "@/app/actions/lists";
 import { CsrfField } from "@/components/csrf-field";
 import { Flash } from "@/components/flash";
 
 const initial: ActionState = {};
-const lookupInitial: PersonLookupState = {};
 
 const HOME_INVITE_FLASH_KEY = "ace-home-invite-flash";
 
@@ -103,71 +100,40 @@ export function InviteMyListForm({
 }
 
 export function FindByEmailForm({ csrf }: { csrf: string }) {
-  const [lookup, lookupAction, lookingUp] = useActionState(
-    lookupPersonByEmail,
-    lookupInitial,
-  );
-  const [requestState, requestAction, requesting] = useActionState(
-    requestListAccess,
-    initial,
+  const [state, action, pending] = useActionState(
+    requestListAccessByEmail,
+    initial as ActionState & { listId?: string },
   );
 
   return (
-    <div className="space-y-2">
-      <form action={lookupAction} className="space-y-2">
-        <CsrfField token={csrf} />
-        <Flash error={lookup.error} ok={lookup.ok} />
-        <label className="label" htmlFor="find-email">
-          Their email (exact match)
-        </label>
-        <input
-          id="find-email"
-          name="email"
-          type="email"
-          className="field"
-          required
-          placeholder="friend@example.com"
-          autoComplete="email"
-        />
-        <button type="submit" className="btn btn-primary" disabled={lookingUp}>
-          {lookingUp ? "Looking…" : "Look up"}
-        </button>
-        <p style={{ fontSize: 12, color: "#555", margin: 0 }}>
-          Exact email only — no name search. If they have an account, you can
-          request access to their list (they still must approve).
-        </p>
-      </form>
-
-      {lookup.person?.access === "granted" ? (
+    <form action={action} className="space-y-2">
+      <CsrfField token={csrf} />
+      <Flash error={state.error} ok={state.ok} />
+      <label className="label" htmlFor="find-email">
+        Their email (exact match)
+      </label>
+      <input
+        id="find-email"
+        name="email"
+        type="email"
+        className="field"
+        required
+        placeholder="friend@example.com"
+        autoComplete="email"
+      />
+      <button type="submit" className="btn btn-primary" disabled={pending}>
+        {pending ? "Sending…" : "Request access"}
+      </button>
+      <p style={{ fontSize: 12, color: "#555", margin: 0 }}>
+        Exact email only — no name search. We won&apos;t say whether that email
+        has an account; if it does, they must approve your request.
+      </p>
+      {"listId" in state && state.listId ? (
         <p style={{ margin: "8px 0 0", fontSize: 13 }}>
-          <Link href={`/lists/${lookup.person.listId}`}>
-            Open {lookup.person.displayName}&apos;s list
-          </Link>
+          <Link href={`/lists/${state.listId}`}>Open their list</Link>
         </p>
       ) : null}
-
-      {lookup.person?.access === "none" ? (
-        <form action={requestAction} style={{ marginTop: 8 }}>
-          <CsrfField token={csrf} />
-          <input type="hidden" name="listId" value={lookup.person.listId} />
-          <input
-            type="hidden"
-            name="ownerUserId"
-            value={lookup.person.userId}
-          />
-          <Flash error={requestState.error} ok={requestState.ok} />
-          <button
-            type="submit"
-            className="btn btn-primary"
-            disabled={requesting}
-          >
-            {requesting
-              ? "Requesting…"
-              : `Request access to ${lookup.person.displayName}'s list`}
-          </button>
-        </form>
-      ) : null}
-    </div>
+    </form>
   );
 }
 

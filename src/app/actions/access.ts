@@ -23,22 +23,17 @@ function s(fd: FormData, key: string): string {
 
 export type ActionState = { error?: string; ok?: string };
 
-export type PersonLookupState = {
-  error?: string;
-  ok?: string;
-  person?: {
-    userId: string;
-    displayName: string;
-    listId: string;
-    access: "none" | "pending" | "granted";
-  };
-};
-
-/** Exact email match only — no name/directory search. */
-export async function lookupPersonByEmail(
-  _prev: PersonLookupState,
+/**
+ * Exact-email access request. Does not reveal whether the email is registered:
+ * unknown / no list / created / already-pending share one success message.
+ * Only "already have access" names a concrete list link (caller already can view).
+ */
+export async function requestListAccessByEmail(
+  _prev: ActionState,
   formData: FormData,
-): Promise<PersonLookupState> {
+): Promise<ActionState & { listId?: string }> {
+  const opaqueOk =
+    "If that email has an account, your request was recorded. They must approve before you can see their list.";
   try {
     await assertCsrf(formData.get("csrf"));
     const user = await requireUser();
@@ -65,7 +60,7 @@ export async function lookupPersonByEmail(
         windowMs: 24 * 60 * 60 * 1000,
       }))
     ) {
-      return { error: "Too many lookups. Try again later." };
+      return { error: "Too many requests. Try again later." };
     }
 
     const rows = await sql<{ id: string; display_name: string }>(
@@ -73,58 +68,35 @@ export async function lookupPersonByEmail(
       [email],
     );
     if (!rows.length) {
-      return { error: "No account with that exact email." };
+      return { ok: opaqueOk };
     }
 
     const person = rows[0];
     const listId = await getPersonalListId(person.id);
     if (!listId) {
-      return { error: "That account doesn't have a personal list yet." };
+      return { ok: opaqueOk };
     }
 
     if (await canViewList(listId, user.id)) {
       return {
-        ok: `You already can view ${person.display_name}'s list.`,
-        person: {
-          userId: person.id,
-          displayName: person.display_name,
-          listId,
-          access: "granted",
-        },
-      };
-    }
-
-    const pending = await sql(
-      `select 1 from list_access_requests
-       where list_id = $1 and requester_id = $2 and status = 'pending'`,
-      [listId, user.id],
-    );
-    if (pending.length) {
-      return {
-        ok: `Access request to ${person.display_name} is already pending.`,
-        person: {
-          userId: person.id,
-          displayName: person.display_name,
-          listId,
-          access: "pending",
-        },
-      };
-    }
-
-    return {
-      ok: `Found ${person.display_name}. You can request access to their list.`,
-      person: {
-        userId: person.id,
-        displayName: person.display_name,
+        ok: "You already have access to that person's list.",
         listId,
-        access: "none",
-      },
-    };
+      };
+    }
+
+    // Reuse the same gates as requestListAccess (rate limits + account age).
+    const gate = new FormData();
+    gate.set("csrf", String(formData.get("csrf") ?? ""));
+    gate.set("listId", listId);
+    gate.set("ownerUserId", person.id);
+    const result = await requestListAccess({}, gate);
+    if (result.error) return { error: result.error };
+    return { ok: opaqueOk };
   } catch (e) {
     if (e instanceof Error && e.message === "UNAUTHORIZED") {
       return { error: "Sign in required." };
     }
-    return { error: "Could not look up that email." };
+    return { error: "Could not send that request." };
   }
 }
 
@@ -326,13 +298,15 @@ export async function acceptListInviteToken(
        where token = $1 and accepted_at is null and expires_at > now()`,
       [token],
     );
-    if (!invites.length) return { error: "Invite is invalid or expired." };
+    const inviteUnavailable =
+      "This invite can't be accepted. It may be invalid, expired, already used, or meant for a different account.";
+    if (!invites.length) return { error: inviteUnavailable };
     const invite = invites[0];
     if (
       invite.email &&
       invite.email.toLowerCase() !== user.email.toLowerCase()
     ) {
-      return { error: "This invite was sent to a different email." };
+      return { error: inviteUnavailable };
     }
 
     await grantListAccess(invite.list_id, user.id, null);

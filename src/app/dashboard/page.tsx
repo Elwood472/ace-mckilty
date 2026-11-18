@@ -258,7 +258,7 @@ export default async function DashboardPage() {
             </div>
           </div>
           <div className="panel" style={{ minWidth: 280, flex: "1 1 280px" }}>
-            <div className="panel-head">Find someone by email</div>
+            <div className="panel-head">Request access by email</div>
             <div style={{ padding: 10 }}>
               <FindByEmailForm csrf={csrf} />
             </div>
