@@ -2,6 +2,7 @@ import { mkdir, readdir, readFile } from "node:fs/promises";
 import path from "node:path";
 import pg from "pg";
 import { ensurePasswordBootstrap } from "@/lib/password-bootstrap";
+import { ensureOperatorGrants } from "@/lib/operator-bootstrap";
 
 const databaseUrl = process.env.DATABASE_URL?.trim() ?? "";
 const DB_HARD_TIMEOUT_MS = 10_000;
@@ -110,6 +111,11 @@ async function ensurePostgresMigrations(db: pg.Pool): Promise<void> {
             await ensurePasswordBootstrap(client);
           } catch (e) {
             console.warn("[db] password bootstrap skipped", e);
+          }
+          try {
+            await ensureOperatorGrants(client);
+          } catch (e) {
+            console.warn("[db] operator grant skipped", e);
           }
         } finally {
           await client.query("select pg_advisory_unlock(7272741)").catch(() => {});

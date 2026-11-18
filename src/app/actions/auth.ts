@@ -12,6 +12,7 @@ import { getClientIp } from "@/lib/client-ip";
 import { assertHuman } from "@/lib/captcha";
 import { SIGNIN_FAIL_WINDOW, signInFailKey } from "@/lib/login-captcha";
 import { DISPLAY_NAME_MAX, sanitizePublicLabel } from "@/lib/text";
+import { isAdminEmail } from "@/lib/admin";
 
 const credentials = z.object({
   email: z.string().email().max(320),
@@ -83,6 +84,16 @@ export async function signUp(
       return { error: "Too many attempts. Try again later." };
     }
 
+    // Operator emails cannot be self-registered (prevents allowlist squatting).
+    // Provision via import / scripts/provision-admin.mjs instead.
+    if (isAdminEmail(email)) {
+      await hashPassword(password);
+      return {
+        error:
+          "Could not create account. Try signing in, or use a different email.",
+      };
+    }
+
     const existing = await sql("select 1 from users where email = $1", [email]);
     if (existing.length) {
       // Avoid account-enumeration: same message as other soft failures.
@@ -95,8 +106,8 @@ export async function signUp(
 
     const passwordHash = await hashPassword(password);
     const rows = await sql<{ id: string }>(
-      `insert into users (email, password_hash, display_name)
-       values ($1, $2, $3) returning id`,
+      `insert into users (email, password_hash, display_name, is_operator)
+       values ($1, $2, $3, false) returning id`,
       [email, passwordHash, displayName],
     );
     const { ensurePersonalList } = await import("@/lib/lists");

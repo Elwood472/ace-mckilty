@@ -9,6 +9,7 @@
     "lint": "eslint",
     "migrate": "node scripts/migrate.mjs",
     "bootstrap-passwords": "node scripts/bootstrap-passwords.mjs",
+    "provision-admin": "node scripts/provision-admin.mjs",
     "db:export": "node scripts/export-pglite.mjs",
     "db:filter-real": "node scripts/filter-dump-real-accounts.mjs",
     "db:import": "node scripts/import-dump.mjs",

@@ -9,6 +9,10 @@ import type { User } from "@/lib/types";
  * Operator emails from ADMIN_EMAILS (comma-separated).
  * No shipped default — if unset, nobody has admin access.
  * Bind ADMIN_EMAILS as an app secret for the published host.
+ *
+ * Email allowlist alone is not enough: the user row must also have
+ * is_operator=true (one-shot grant for existing accounts, or CLI provision).
+ * Open signup rejects ADMIN_EMAILS so those addresses cannot be squatted.
  */
 export function adminEmailAllowlist(): string[] {
   const fromEnv = (process.env.ADMIN_EMAILS ?? "")
@@ -25,11 +29,17 @@ export function isAdminEmail(email: string | null | undefined): boolean {
   return allow.includes(email.trim().toLowerCase());
 }
 
+/** True only when allowlisted and explicitly provisioned as an operator. */
+export function isProvisionedAdmin(user: User | null | undefined): boolean {
+  if (!user) return false;
+  return !!user.is_operator && isAdminEmail(user.email);
+}
+
 export async function requireAdmin(): Promise<User> {
   const user = await getCurrentUser();
   if (!user) redirect("/login?next=/admin");
   await ensureTwoFactorEnrolled(user.id);
-  if (!isAdminEmail(user.email)) redirect("/dashboard");
+  if (!isProvisionedAdmin(user)) redirect("/dashboard");
   return user;
 }
 

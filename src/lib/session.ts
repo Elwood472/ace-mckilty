@@ -65,7 +65,8 @@ export async function getCurrentUser(): Promise<User | null> {
   const token = jar.get(SESSION_COOKIE)?.value;
   if (!token) return null;
   const rows = await sql<User>(
-    `select u.id, u.email, u.display_name, u.created_at::text as created_at
+    `select u.id, u.email, u.display_name, u.created_at::text as created_at,
+            coalesce(u.is_operator, false) as is_operator
      from sessions s
      join users u on u.id = s.user_id
      where s.id = $1 and s.expires_at > now()`,

@@ -7,7 +7,7 @@ import { requireAppUser } from "@/lib/session";
 import { activityClass, formatMd, formatMdY } from "@/lib/dates";
 import { listPeopleToBuyFor } from "@/lib/people";
 import { ensurePersonalList } from "@/lib/lists";
-import { isAdminEmail } from "@/lib/admin";
+import { isProvisionedAdmin } from "@/lib/admin";
 import {
   CreateTogetherForm,
   DecideRequestForm,
@@ -19,7 +19,7 @@ export default async function DashboardPage() {
   const user = await requireAppUser();
   const csrf = await ensureCsrfToken();
   const myListId = await ensurePersonalList(user.id, user.display_name);
-  const showAdmin = isAdminEmail(user.email);
+  const showAdmin = isProvisionedAdmin(user);
 
   const people = await listPeopleToBuyFor(user.id);
 
