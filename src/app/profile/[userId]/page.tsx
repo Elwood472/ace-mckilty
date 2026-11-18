@@ -56,7 +56,9 @@ export default async function ProfilePage({ params }: Props) {
             {userId === me.id ? (
               <>
                 {" · "}
-                <Link href="/profile/edit">Edit My Profile</Link>
+                <Link href="/profile/edit">Edit profile</Link>
+                {" · "}
+                <Link href="/profile/appearance">Colors</Link>
               </>
             ) : null}
             {access === "granted" && theirListId ? (

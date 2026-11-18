@@ -2,7 +2,6 @@ import Link from "next/link";
 import type { User } from "@/lib/types";
 import { signOut } from "@/app/actions/auth";
 import { CsrfField } from "@/components/csrf-field";
-import { isAdminEmail } from "@/lib/admin";
 import { ensureCsrfToken } from "@/lib/csrf";
 
 /**
@@ -19,7 +18,6 @@ export async function SiteHeader({
 }) {
   const giftsHome = user ? "/dashboard" : "/gifts";
   const csrf = user ? await ensureCsrfToken() : "";
-  const showAdmin = !!user && isAdminEmail(user.email);
 
   return (
     <header className="site-header">
@@ -82,14 +80,6 @@ export async function SiteHeader({
                   <Link href="/">Site</Link>
                   {" · "}
                   <Link href="/dashboard">Home</Link>
-                  {showAdmin ? (
-                    <>
-                      {" · "}
-                      <Link href="/admin">Admin</Link>
-                    </>
-                  ) : null}
-                  {" · "}
-                  <Link href="/profile/appearance">Colors</Link>
                   {" · "}
                   <Link href="/profile/security">Security</Link>
                   {" · "}

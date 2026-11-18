@@ -147,12 +147,6 @@ export default async function ListPage({ params, searchParams }: Props) {
       <main className="site-main">
         <p>
           <Link href="/dashboard">← Home</Link>
-          {owner ? (
-            <>
-              {" · "}
-              <Link href={`/lists/${listId}/add`}>Add a gift</Link>
-            </>
-          ) : null}
         </p>
         <h1 className="brand-title" style={{ fontSize: 22, marginTop: 8 }}>
           {list.title}
@@ -165,6 +159,22 @@ export default async function ListPage({ params, searchParams }: Props) {
             ? " · You own this list (purchase status is hidden from you)"
             : ""}
         </p>
+        {owner ? (
+          <p style={{ marginTop: 10, marginBottom: 0 }}>
+            <Link
+              href={`/lists/${listId}/add`}
+              className="btn btn-primary"
+              style={{ textDecoration: "none" }}
+            >
+              Add a gift
+            </Link>
+            {list.list_type === "personal" ? (
+              <span style={{ marginLeft: 14, fontSize: 12, color: "#666" }}>
+                <Link href="/removed">Removed gifts</Link>
+              </span>
+            ) : null}
+          </p>
+        ) : null}
 
         <div style={{ display: "flex", gap: 20, flexWrap: "wrap", marginTop: 14 }}>
           <div style={{ flex: "1 1 560px" }}>

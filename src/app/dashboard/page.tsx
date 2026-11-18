@@ -93,11 +93,7 @@ export default async function DashboardPage() {
           — Home
         </p>
 
-        <HomeToolbar
-          myListId={myListId}
-          userId={user.id}
-          showAdmin={showAdmin}
-        />
+        <HomeToolbar myListId={myListId} userId={user.id} />
 
         <h2
           style={{
@@ -270,6 +266,26 @@ export default async function DashboardPage() {
             </div>
           </div>
         </div>
+
+        <p
+          style={{
+            marginTop: 28,
+            fontSize: 12,
+            color: "#666",
+            maxWidth: 720,
+          }}
+        >
+          Occasional tools:{" "}
+          <Link href="/bought">Marked bought</Link>
+          {" · "}
+          <Link href="/removed">Removed gifts</Link>
+          {showAdmin ? (
+            <>
+              {" · "}
+              <Link href="/admin">Admin</Link>
+            </>
+          ) : null}
+        </p>
       </main>
     </>
   );

@@ -44,7 +44,7 @@ export default async function RemovedPage() {
           <Link href="/dashboard">← Home</Link>
         </p>
         <h1 className="brand-title" style={{ fontSize: 20 }}>
-          Gifts I Removed
+          Removed gifts
         </h1>
         <p>
           Put it back restores the gift to your list. PURGE removes it from this

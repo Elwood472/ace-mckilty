@@ -46,7 +46,7 @@ export default async function BoughtPage() {
           <Link href="/dashboard">← Home</Link>
         </p>
         <h1 className="brand-title" style={{ fontSize: 20 }}>
-          Gifts I Bought
+          Marked bought
         </h1>
         <p>
           Put an item back if you change your mind. List owners never see that you

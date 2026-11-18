@@ -26,7 +26,7 @@ export default async function EditProfilePage() {
         <p>
           <Link href="/dashboard">← Home</Link>
           {" · "}
-          <Link href={`/profile/${user.id}`}>View profile</Link>
+          <Link href={`/profile/${user.id}`}>My profile</Link>
           {" · "}
           <Link href="/profile/appearance">Colors</Link>
           {" · "}
