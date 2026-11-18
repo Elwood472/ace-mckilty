@@ -9,10 +9,10 @@ const FAQS: { id: string; q: string; a: ReactNode }[] = [
     q: "How does this work?",
     a: (
       <>
-        Add gifts you would like. Share your list by inviting specific people, or
-        approve requests from people who find you. When someone marks a gift
-        bought, only the list owner sees the item normally — everyone else sees
-        that it has been purchased.
+        Add gifts you would like. Share your list by inviting people, or approve
+        access requests from people who look you up by exact email on Home. When
+        someone marks a gift bought, only the list owner sees the item normally —
+        everyone else sees that it has been purchased.
       </>
     ),
   },
@@ -21,10 +21,11 @@ const FAQS: { id: string; q: string; a: ReactNode }[] = [
     q: "How do I share my list?",
     a: (
       <>
-        There are no friend circles. Email an invite link from Home or from a
-        list&apos;s invite panel. If someone already has your profile link, they
-        can request access and you approve or deny it. Access goes one way: you
-        seeing their list is separate from them seeing yours.
+        There are no friend circles and no name directory. From Home you can
+        email an invite link (them seeing your list), or look someone up by{" "}
+        <b>exact email</b> and request access to theirs (they must approve).
+        Access goes one way — inviting them does not automatically let you see
+        their list.
       </>
     ),
   },

@@ -23,6 +23,111 @@ function s(fd: FormData, key: string): string {
 
 export type ActionState = { error?: string; ok?: string };
 
+export type PersonLookupState = {
+  error?: string;
+  ok?: string;
+  person?: {
+    userId: string;
+    displayName: string;
+    listId: string;
+    access: "none" | "pending" | "granted";
+  };
+};
+
+/** Exact email match only — no name/directory search. */
+export async function lookupPersonByEmail(
+  _prev: PersonLookupState,
+  formData: FormData,
+): Promise<PersonLookupState> {
+  try {
+    await assertCsrf(formData.get("csrf"));
+    const user = await requireUser();
+    const email = s(formData, "email").toLowerCase();
+    if (!email || !email.includes("@") || !email.includes(".")) {
+      return { error: "Enter a valid email." };
+    }
+    if (email === user.email.toLowerCase()) {
+      return { error: "That's your own email." };
+    }
+
+    const ip = await getClientIp();
+    if (
+      !(await checkRateLimit(`person-lookup:${user.id}`, {
+        maxHits: 10,
+        windowMs: 15 * 60 * 1000,
+      })) ||
+      !(await checkRateLimit(`person-lookup-ip:${ip}`, {
+        maxHits: 20,
+        windowMs: 15 * 60 * 1000,
+      })) ||
+      !(await checkRateLimit(`person-lookup-day:${user.id}`, {
+        maxHits: 40,
+        windowMs: 24 * 60 * 60 * 1000,
+      }))
+    ) {
+      return { error: "Too many lookups. Try again later." };
+    }
+
+    const rows = await sql<{ id: string; display_name: string }>(
+      `select id, display_name from users where lower(email) = $1 limit 1`,
+      [email],
+    );
+    if (!rows.length) {
+      return { error: "No account with that exact email." };
+    }
+
+    const person = rows[0];
+    const listId = await getPersonalListId(person.id);
+    if (!listId) {
+      return { error: "That account doesn't have a personal list yet." };
+    }
+
+    if (await canViewList(listId, user.id)) {
+      return {
+        ok: `You already can view ${person.display_name}'s list.`,
+        person: {
+          userId: person.id,
+          displayName: person.display_name,
+          listId,
+          access: "granted",
+        },
+      };
+    }
+
+    const pending = await sql(
+      `select 1 from list_access_requests
+       where list_id = $1 and requester_id = $2 and status = 'pending'`,
+      [listId, user.id],
+    );
+    if (pending.length) {
+      return {
+        ok: `Access request to ${person.display_name} is already pending.`,
+        person: {
+          userId: person.id,
+          displayName: person.display_name,
+          listId,
+          access: "pending",
+        },
+      };
+    }
+
+    return {
+      ok: `Found ${person.display_name}. You can request access to their list.`,
+      person: {
+        userId: person.id,
+        displayName: person.display_name,
+        listId,
+        access: "none",
+      },
+    };
+  } catch (e) {
+    if (e instanceof Error && e.message === "UNAUTHORIZED") {
+      return { error: "Sign in required." };
+    }
+    return { error: "Could not look up that email." };
+  }
+}
+
 export async function createListEmailInvite(
   _prev: ActionState,
   formData: FormData,
