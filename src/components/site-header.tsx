@@ -75,7 +75,7 @@ export async function SiteHeader({
             <td valign="middle" align="right">
               {user ? (
                 <span style={{ fontSize: 12 }}>
-                  {user.display_name}
+                  <b>{user.display_name}</b>
                   {" · "}
                   <Link href="/">Site</Link>
                   {" · "}
