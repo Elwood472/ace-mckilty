@@ -90,6 +90,9 @@ export async function completePasswordResetAction(
   let done = false;
   try {
     const ip = await getClientIp();
+    const human = await assertHuman(formData, ip);
+    if (!human.ok) return { error: human.error };
+
     if (
       !(await checkRateLimit(`pw-reset-complete:${ip}`, {
         maxHits: 10,

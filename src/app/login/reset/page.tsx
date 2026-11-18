@@ -1,6 +1,11 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { SiteHeader } from "@/components/site-header";
+import {
+  allowMathCaptchaFallback,
+  getTurnstileSiteKey,
+  issueMathChallenge,
+} from "@/lib/captcha";
 import { ensureCsrfToken } from "@/lib/csrf";
 import { findValidResetToken } from "@/lib/password-reset";
 import { getCurrentUser } from "@/lib/session";
@@ -18,6 +23,11 @@ export default async function ResetPasswordPage({
   const token = typeof sp.token === "string" ? sp.token.trim() : "";
   const valid = token ? await findValidResetToken(token) : null;
   const csrf = await ensureCsrfToken();
+  const turnstileSiteKey = getTurnstileSiteKey();
+  const mathChallenge =
+    !turnstileSiteKey && allowMathCaptchaFallback()
+      ? await issueMathChallenge()
+      : null;
 
   return (
     <>
@@ -27,7 +37,12 @@ export default async function ResetPasswordPage({
           Choose a new password
         </p>
         {valid ? (
-          <ResetPasswordForm csrf={csrf} token={token} />
+          <ResetPasswordForm
+            csrf={csrf}
+            token={token}
+            turnstileSiteKey={turnstileSiteKey}
+            mathChallenge={mathChallenge}
+          />
         ) : (
           <div className="panel" style={{ padding: 16, maxWidth: 360 }}>
             <p style={{ fontWeight: 700, color: "#cc0000" }}>

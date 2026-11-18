@@ -302,8 +302,9 @@ export async function acceptListInviteToken(
       "This invite can't be accepted. It may be invalid, expired, already used, or meant for a different account.";
     if (!invites.length) return { error: inviteUnavailable };
     const invite = invites[0];
+    // Every accept path requires a bound invite email that matches the signer.
     if (
-      invite.email &&
+      !invite.email ||
       invite.email.toLowerCase() !== user.email.toLowerCase()
     ) {
       return { error: inviteUnavailable };

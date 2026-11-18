@@ -23,6 +23,10 @@ function bootstrapEmails(): string[] {
 export async function ensurePasswordBootstrap(
   client: pg.PoolClient,
 ): Promise<void> {
+  // Hosted Postgres: never auto-reset passwords from env on connect.
+  // Use forgot-password / admin tools instead; leave BOOTSTRAP_* unset in host env.
+  if (process.env.DATABASE_URL?.trim()) return;
+
   const password = process.env.BOOTSTRAP_PASSWORD?.trim() ?? "";
   if (!password || password.length < 8) return;
 

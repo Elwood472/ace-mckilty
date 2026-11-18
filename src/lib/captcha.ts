@@ -9,17 +9,24 @@ import {
 /**
  * Abuse / CAPTCHA helpers.
  *
- * Hosted (DATABASE_URL set): Cloudflare Turnstile is required
+ * Hosted / production: Cloudflare Turnstile is required
  * (TURNSTILE_SITE_KEY + TURNSTILE_SECRET_KEY). There is no math/PoW fallback —
  * client-solvable puzzles are not an acceptable production default.
  *
- * Local (no DATABASE_URL): Cloudflare always-pass test keys are used so
- * signup/login work without real Turnstile. Math+PoW remains only as a local
- * last resort if those test keys are somehow unavailable.
+ * Local (no DATABASE_URL, non-production): Cloudflare always-pass test keys
+ * are used so signup/login work without real Turnstile. Math+PoW remains only
+ * as a local last resort if those test keys are somehow unavailable.
  *
  * Optional CAPTCHA_HMAC_SECRET / CSRF_SECRET override the math HMAC key when
  * the local math path is used.
  */
+
+/** True for Cursor-hosted Postgres or any NODE_ENV=production deploy. */
+function requiresTurnstile(): boolean {
+  return Boolean(
+    process.env.DATABASE_URL?.trim() || process.env.NODE_ENV === "production",
+  );
+}
 
 const MATH_TTL_MS = 10 * 60 * 1000;
 /** Hex leading zeros required of sha256(`${powSalt}:${powNonce}`). */
@@ -92,8 +99,8 @@ function safeEqual(a: string, b: string): boolean {
 export function getTurnstileSiteKey(): string | null {
   const configured = process.env.TURNSTILE_SITE_KEY?.trim();
   if (configured) return configured;
-  // Local-only Cloudflare test key (always passes). Never for published Postgres.
-  if (!process.env.DATABASE_URL?.trim()) {
+  // Local-only Cloudflare test key (always passes). Never in production/hosted.
+  if (!requiresTurnstile()) {
     return "1x00000000000000000000AA";
   }
   return null;
@@ -102,7 +109,7 @@ export function getTurnstileSiteKey(): string | null {
 function getTurnstileSecret(): string | null {
   const configured = process.env.TURNSTILE_SECRET_KEY?.trim();
   if (configured) return configured;
-  if (!process.env.DATABASE_URL?.trim()) {
+  if (!requiresTurnstile()) {
     return "1x0000000000000000000000000000000AA";
   }
   return null;
@@ -258,8 +265,8 @@ export async function assertHuman(
     return verifyTurnstile(token, ip);
   }
 
-  // Hosted production: never fall back to client-solvable math CAPTCHA.
-  if (process.env.DATABASE_URL?.trim()) {
+  // Hosted / production: never fall back to client-solvable math CAPTCHA.
+  if (requiresTurnstile()) {
     return {
       ok: false,
       error: "CAPTCHA is not configured. Try again later.",
@@ -291,7 +298,7 @@ export async function assertHuman(
   return { ok: true };
 }
 
-/** True when the local math+PoW path may be offered (never on hosted Postgres). */
+/** True when the local math+PoW path may be offered (never hosted/production). */
 export function allowMathCaptchaFallback(): boolean {
-  return !process.env.DATABASE_URL?.trim();
+  return !requiresTurnstile();
 }
