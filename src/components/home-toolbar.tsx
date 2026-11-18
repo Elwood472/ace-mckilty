@@ -12,6 +12,7 @@ export function HomeToolbar({
   const items: { href: string; label: string }[] = [
     { href: "/profile/edit", label: "Edit profile" },
     { href: `/profile/${userId}`, label: "View profile" },
+    { href: "/profile/appearance", label: "Colors" },
     { href: `/lists/${myListId}/add`, label: "Add a gift" },
     { href: `/lists/${myListId}`, label: "My gifts" },
     { href: "/bought", label: "Gifts I bought" },

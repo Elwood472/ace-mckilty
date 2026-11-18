@@ -37,7 +37,7 @@ export async function SiteHeader({
                   style={{
                     width: 40,
                     height: 40,
-                    background: "#000080",
+                    background: "var(--navy)",
                     border: "1px solid #000",
                     color: "#fff",
                     fontWeight: 700,
@@ -65,7 +65,7 @@ export async function SiteHeader({
                     style={{
                       fontSize: 13,
                       fontWeight: 700,
-                      color: "#000080",
+                      color: "var(--navy)",
                       textDecoration: "none",
                     }}
                   >
@@ -88,6 +88,8 @@ export async function SiteHeader({
                       <Link href="/admin">Admin</Link>
                     </>
                   ) : null}
+                  {" · "}
+                  <Link href="/profile/appearance">Colors</Link>
                   {" · "}
                   <Link href="/profile/security">Security</Link>
                   {" · "}

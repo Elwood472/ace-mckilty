@@ -28,6 +28,8 @@ export default async function EditProfilePage() {
           {" · "}
           <Link href={`/profile/${user.id}`}>View profile</Link>
           {" · "}
+          <Link href="/profile/appearance">Colors</Link>
+          {" · "}
           <Link href="/profile/security">Sign-in security</Link>
         </p>
         <h1 className="brand-title" style={{ fontSize: 22, marginTop: 8 }}>
