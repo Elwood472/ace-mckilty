@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useEffect, useState } from "react";
 import {
   createListEmailInvite,
   decideAccessRequest,
@@ -20,11 +20,21 @@ export function InviteForm({
   listId: string;
 }) {
   const [state, action, pending] = useActionState(createListEmailInvite, initial);
+  const [flash, setFlash] = useState<{ ok?: string; error?: string }>({});
+  useEffect(() => {
+    if (state.ok) setFlash({ ok: state.ok });
+    else if (state.error) setFlash({ error: state.error });
+  }, [state.ok, state.error]);
+
   return (
-    <form action={action} className="space-y-2">
+    <form
+      action={action}
+      className="space-y-2"
+      onSubmit={() => setFlash({})}
+    >
       <CsrfField token={csrf} />
       <input type="hidden" name="listId" value={listId} />
-      <Flash error={state.error} ok={state.ok} />
+      <Flash error={flash.error} ok={flash.ok} />
       <label className="label" htmlFor="email">
         Email invite
       </label>

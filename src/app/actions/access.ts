@@ -162,8 +162,9 @@ export async function createListEmailInvite(
       html: mail.html,
     });
 
+    // Refresh the list invite panel only. Revalidating /dashboard remounts the
+    // home Invite form and wipes the green "Invite emailed…" flash.
     revalidatePath(`/lists/${listId}`);
-    revalidatePath("/dashboard");
     if (!sent.ok) {
       return {
         ok: `Invite created (${inviteUrl}), but email failed: ${sent.error}`,
