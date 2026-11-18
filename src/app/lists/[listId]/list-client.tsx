@@ -25,6 +25,59 @@ import { safeExternalHref } from "@/lib/url-safety";
 
 const initial: ActionState = {};
 
+function GiftThumb({ src }: { src: string }) {
+  const ref = useRef<HTMLImageElement>(null);
+  const [preview, setPreview] = useState<{ top: number; left: number } | null>(
+    null,
+  );
+
+  function placePreview() {
+    const el = ref.current;
+    if (!el) return;
+    const r = el.getBoundingClientRect();
+    const maxW = Math.min(360, window.innerWidth * 0.7);
+    const maxH = Math.min(360, window.innerHeight * 0.7);
+    let left = r.right + 12;
+    let top = r.top;
+    if (left + maxW > window.innerWidth - 8) left = r.left - maxW - 12;
+    if (left < 8) left = 8;
+    if (top + maxH > window.innerHeight - 8) {
+      top = Math.max(8, window.innerHeight - maxH - 8);
+    }
+    if (top < 8) top = 8;
+    setPreview({ top, left });
+  }
+
+  return (
+    <>
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img
+        ref={ref}
+        src={src}
+        alt=""
+        width={64}
+        height={64}
+        className="gift-thumb"
+        tabIndex={0}
+        onMouseEnter={placePreview}
+        onMouseLeave={() => setPreview(null)}
+        onFocus={placePreview}
+        onBlur={() => setPreview(null)}
+      />
+      {preview ? (
+        <div
+          className="gift-thumb-preview"
+          style={{ top: preview.top, left: preview.left }}
+          aria-hidden
+        >
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src={src} alt="" />
+        </div>
+      ) : null}
+    </>
+  );
+}
+
 export function ListFilters({
   
   listId,
@@ -297,14 +350,7 @@ function ItemRow({
       <td className="px-4 py-3">
         <div className="flex gap-3">
           {safeExternalHref(item.image_url) ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img
-              src={safeExternalHref(item.image_url)!}
-              alt=""
-              width={64}
-              height={64}
-              className="h-16 w-16 rounded-md object-cover"
-            />
+            <GiftThumb src={safeExternalHref(item.image_url)!} />
           ) : null}
           <div>
             {safeExternalHref(item.url) ? (
