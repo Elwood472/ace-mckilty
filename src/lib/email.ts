@@ -24,6 +24,19 @@ export async function sendEmail(opts: {
 
   if (!apiKey) {
     // Do not log recipient, subject, or body (invite tokens / PII).
+    const hosted = !!process.env.DATABASE_URL?.trim();
+    if (hosted) {
+      // Hosted Postgres must not pretend mail succeeded — callers treat ok
+      // as delivered (invites, resets, access requests, 2FA codes).
+      console.warn(
+        "[email] RESEND_API_KEY unset on hosted deploy — email not sent.",
+      );
+      return {
+        ok: false,
+        mode: "stub",
+        error: "Email is not configured. Bind RESEND_API_KEY and try again.",
+      };
+    }
     console.info(
       "[email:stub] RESEND_API_KEY unset — email not sent. Bind RESEND_API_KEY for live mail.",
     );
