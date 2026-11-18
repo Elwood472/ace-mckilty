@@ -6,6 +6,7 @@ import { sql, withTransaction } from "@/lib/db";
 import { assertCsrf } from "@/lib/csrf";
 import { requireUser } from "@/lib/session";
 import {
+  filterListAccessViewerIds,
   getListOwnerIds,
   isListOwner,
   requireListOwner,
@@ -134,7 +135,8 @@ export async function createItem(
     );
 
     if (restricted) {
-      for (const vid of viewerIds) {
+      const allowed = await filterListAccessViewerIds(listId, viewerIds);
+      for (const vid of allowed) {
         await sql(
           `insert into item_viewers (item_id, user_id) values ($1, $2)
            on conflict do nothing`,
@@ -236,7 +238,8 @@ export async function updateItem(
 
     await sql("delete from item_viewers where item_id = $1", [itemId]);
     if (restricted) {
-      for (const vid of viewerIds) {
+      const allowed = await filterListAccessViewerIds(listId, viewerIds);
+      for (const vid of allowed) {
         await sql(
           `insert into item_viewers (item_id, user_id) values ($1, $2)
            on conflict do nothing`,

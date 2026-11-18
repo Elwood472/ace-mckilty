@@ -62,3 +62,18 @@ export async function grantListAccess(
     [listId, userId, grantedBy],
   );
 }
+
+/** Keep only users who already have list_access on this list. */
+export async function filterListAccessViewerIds(
+  listId: string,
+  viewerIds: string[],
+): Promise<string[]> {
+  const unique = [...new Set(viewerIds.filter((id) => id.length > 0))];
+  if (!unique.length) return [];
+  const rows = await sql<{ user_id: string }>(
+    `select user_id from list_access
+     where list_id = $1 and user_id = any($2::uuid[])`,
+    [listId, unique],
+  );
+  return rows.map((r) => r.user_id);
+}
