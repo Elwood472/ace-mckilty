@@ -416,7 +416,7 @@ function ItemRow({
           <form action={unpurchaseAction} className="space-y-1">
             <CsrfField token={csrf} />
             <input type="hidden" name="itemId" value={item.id} />
-            <p className="taken-text">You marked this</p>
+            <p className="taken-text">You marked this bought</p>
             <button
               type="submit"
               className="text-xs font-semibold text-pine underline"
