@@ -2,6 +2,7 @@
 
 import { nanoid } from "nanoid";
 import { revalidatePath } from "next/cache";
+import { redirect } from "next/navigation";
 import { absoluteAppUrl } from "@/lib/app-url";
 import { requireAdmin, writeAdminAudit } from "@/lib/admin";
 import { grantListAccess } from "@/lib/authz";
@@ -428,5 +429,192 @@ export async function adminResetTwoFactor(
     };
   } catch {
     return { error: "Could not reset 2FA." };
+  }
+}
+
+/**
+ * Permanently delete an account and data that would block FK deletes.
+ * Cannot delete yourself. Confirm by typing the account email.
+ */
+export async function adminDeleteUser(
+  _prev: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  try {
+    await assertCsrf(formData.get("csrf"));
+    const admin = await requireAdmin();
+    const targetUserId = s(formData, "targetUserId");
+    const confirmEmail = s(formData, "confirmEmail").toLowerCase();
+    if (!targetUserId) return { error: "Missing user." };
+    if (targetUserId === admin.id) {
+      return { error: "You cannot delete your own admin account." };
+    }
+
+    const users = await sql<{
+      id: string;
+      email: string;
+      display_name: string;
+    }>("select id, email, display_name from users where id = $1", [
+      targetUserId,
+    ]);
+    if (!users.length) return { error: "User not found." };
+    const target = users[0];
+    if (confirmEmail !== target.email.toLowerCase()) {
+      return { error: "Type the account email exactly to confirm delete." };
+    }
+
+    await writeAdminAudit({
+      actorId: admin.id,
+      action: "delete_user",
+      targetUserId,
+      detail: { email: target.email, display_name: target.display_name },
+    });
+
+    // Purchases / viewers involving this user.
+    await sql(`delete from purchases where buyer_user_id = $1`, [targetUserId]);
+    await sql(`delete from item_viewers where user_id = $1`, [targetUserId]);
+
+    // Items they created (created_by is ON DELETE RESTRICT).
+    await sql(
+      `delete from purchases where item_id in (
+         select id from items where created_by = $1
+       )`,
+      [targetUserId],
+    );
+    await sql(
+      `delete from item_viewers where item_id in (
+         select id from items where created_by = $1
+       )`,
+      [targetUserId],
+    );
+    await sql(`delete from items where created_by = $1`, [targetUserId]);
+
+    // Access / invites / requests.
+    await sql(`delete from list_access where user_id = $1`, [targetUserId]);
+    await sql(
+      `update list_access set granted_by = null where granted_by = $1`,
+      [targetUserId],
+    );
+    await sql(`delete from list_invites where invited_by = $1`, [targetUserId]);
+    await sql(
+      `delete from list_invites
+       where email is not null and lower(email) = lower($1)`,
+      [target.email],
+    );
+    await sql(
+      `delete from list_access_requests where requester_id = $1`,
+      [targetUserId],
+    );
+
+    // Lists they solely own → delete list tree. Shared ownership → drop owner row.
+    const owned = await sql<{ list_id: string; owner_count: number }>(
+      `select o.list_id,
+              (select count(*)::int from wish_list_owners wo where wo.list_id = o.list_id) as owner_count
+       from wish_list_owners o
+       where o.user_id = $1`,
+      [targetUserId],
+    );
+    for (const row of owned) {
+      if (row.owner_count <= 1) {
+        await sql(
+          `delete from purchases where item_id in (
+             select id from items where list_id = $1
+           )`,
+          [row.list_id],
+        );
+        await sql(
+          `delete from item_viewers where item_id in (
+             select id from items where list_id = $1
+           )`,
+          [row.list_id],
+        );
+        await sql(`delete from items where list_id = $1`, [row.list_id]);
+        await sql(`delete from list_access where list_id = $1`, [row.list_id]);
+        await sql(`delete from list_invites where list_id = $1`, [row.list_id]);
+        await sql(
+          `delete from list_access_requests where list_id = $1`,
+          [row.list_id],
+        );
+        await sql(`delete from wish_list_owners where list_id = $1`, [
+          row.list_id,
+        ]);
+        await sql(`delete from wish_lists where id = $1`, [row.list_id]);
+      } else {
+        await sql(
+          `delete from wish_list_owners where list_id = $1 and user_id = $2`,
+          [row.list_id, targetUserId],
+        );
+      }
+    }
+
+    // Legacy groups (if any) — owner_id is RESTRICT.
+    await sql(`delete from group_invites where invited_by = $1`, [
+      targetUserId,
+    ]);
+    await sql(`delete from group_members where user_id = $1`, [targetUserId]);
+    await sql(
+      `delete from budgets where user_id = $1`,
+      [targetUserId],
+    );
+    const soleGroups = await sql<{ id: string }>(
+      `select g.id from groups g
+       where g.owner_id = $1
+         and not exists (
+           select 1 from group_members m
+           where m.group_id = g.id and m.user_id <> $1
+         )`,
+      [targetUserId],
+    );
+    for (const g of soleGroups) {
+      await sql(`delete from group_invites where group_id = $1`, [g.id]);
+      await sql(`delete from group_members where group_id = $1`, [g.id]);
+      await sql(`delete from budgets where group_id = $1`, [g.id]);
+      await sql(
+        `update wish_lists set group_id = null where group_id = $1`,
+        [g.id],
+      );
+      await sql(`delete from groups where id = $1`, [g.id]);
+    }
+    // Remaining groups they own with other members: reassign owner.
+    await sql(
+      `update groups g
+       set owner_id = (
+         select m.user_id from group_members m
+         where m.group_id = g.id and m.user_id <> $1
+         order by m.joined_at asc
+         limit 1
+       )
+       where g.owner_id = $1`,
+      [targetUserId],
+    );
+
+    await sql(`delete from sessions where user_id = $1`, [targetUserId]);
+    await sql(`delete from auth_challenges where user_id = $1`, [targetUserId]);
+    await sql(`delete from totp_setup where user_id = $1`, [targetUserId]);
+    await sql(`delete from password_reset_tokens where user_id = $1`, [
+      targetUserId,
+    ]);
+
+    await sql(
+      `delete from couples where user_a_id = $1 or user_b_id = $1`,
+      [targetUserId],
+    );
+
+    await sql(`delete from users where id = $1`, [targetUserId]);
+
+    revalidatePath("/admin");
+    redirect(`/admin?deleted=${encodeURIComponent(target.email)}`);
+  } catch (e) {
+    if (
+      e &&
+      typeof e === "object" &&
+      "digest" in e &&
+      typeof (e as { digest?: string }).digest === "string" &&
+      (e as { digest: string }).digest.startsWith("NEXT_REDIRECT")
+    ) {
+      throw e;
+    }
+    console.error("[admin] delete user failed", e);
+    return { error: "Could not delete account." };
   }
 }

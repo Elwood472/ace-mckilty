@@ -4,6 +4,7 @@ import { useActionState } from "react";
 import {
   adminCancelInvite,
   adminClearRateLimits,
+  adminDeleteUser,
   adminGrantAccess,
   adminResendInvite,
   adminResetTwoFactor,
@@ -269,6 +270,45 @@ function Reset2faForm({
       />
       <button type="submit" className="btn" disabled={pending}>
         {pending ? "Resetting…" : "Reset 2FA"}
+      </button>
+    </form>
+  );
+}
+
+export function DeleteAccountForm({
+  csrf,
+  targetUserId,
+  targetEmail,
+}: {
+  csrf: string;
+  targetUserId: string;
+  targetEmail: string;
+}) {
+  const [state, action, pending] = useActionState(adminDeleteUser, initial);
+  return (
+    <form action={action} className="space-y-2">
+      <CsrfField token={csrf} />
+      <Flash error={state.error} ok={state.ok} />
+      <input type="hidden" name="targetUserId" value={targetUserId} />
+      <p style={{ fontSize: 12, color: "#555", margin: 0 }}>
+        Permanently deletes this account, their sole-owned lists, and related
+        invites/access. Type the email <b>{targetEmail}</b> to confirm.
+      </p>
+      <input
+        name="confirmEmail"
+        type="email"
+        className="field"
+        placeholder={targetEmail}
+        autoComplete="off"
+        required
+      />
+      <button
+        type="submit"
+        className="btn"
+        disabled={pending}
+        style={{ color: "#a00", fontWeight: 700 }}
+      >
+        {pending ? "Deleting…" : "Delete account"}
       </button>
     </form>
   );

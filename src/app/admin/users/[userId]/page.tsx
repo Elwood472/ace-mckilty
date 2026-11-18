@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import {
+  DeleteAccountForm,
   GrantAccessForms,
   InviteRescueForms,
   RevokeAccessForm,
@@ -196,6 +197,20 @@ export default async function AdminUserDetailPage({ params }: Props) {
             </>
           ) : null}
         </p>
+        {userId === admin.id ? (
+          <p
+            style={{
+              fontSize: 12,
+              color: "#555",
+              maxWidth: 560,
+              marginTop: 8,
+            }}
+          >
+            Opening your own gift list still uses normal owner rules — purchase
+            marks stay hidden so you don&apos;t see spoilers. This admin page
+            never lists gifts or buyers.
+          </p>
+        ) : null}
 
         <div style={{ display: "flex", gap: 24, flexWrap: "wrap", marginTop: 16 }}>
           <div className="panel" style={{ minWidth: 280, flex: "1 1 320px" }}>
@@ -382,6 +397,19 @@ export default async function AdminUserDetailPage({ params }: Props) {
             )}
           </div>
         </div>
+
+        {userId !== admin.id ? (
+          <div className="panel" style={{ marginTop: 16, maxWidth: 480 }}>
+            <div className="panel-head">Delete account</div>
+            <div style={{ padding: 10 }}>
+              <DeleteAccountForm
+                csrf={csrf}
+                targetUserId={userId}
+                targetEmail={user.email}
+              />
+            </div>
+          </div>
+        ) : null}
       </main>
     </>
   );

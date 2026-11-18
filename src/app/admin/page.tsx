@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { Flash } from "@/components/flash";
 import { SiteHeader } from "@/components/site-header";
 import { requireAdmin } from "@/lib/admin";
 import { ensureCsrfToken } from "@/lib/csrf";
@@ -6,7 +7,7 @@ import { sql } from "@/lib/db";
 import { formatMdY } from "@/lib/dates";
 
 type Props = {
-  searchParams: Promise<{ q?: string }>;
+  searchParams: Promise<{ q?: string; deleted?: string }>;
 };
 
 export default async function AdminUsersPage({ searchParams }: Props) {
@@ -14,6 +15,7 @@ export default async function AdminUsersPage({ searchParams }: Props) {
   await ensureCsrfToken();
   const sp = await searchParams;
   const q = (sp.q ?? "").trim();
+  const deleted = (sp.deleted ?? "").trim();
 
   const users = q
     ? await sql<{
@@ -74,6 +76,9 @@ export default async function AdminUsersPage({ searchParams }: Props) {
           Support tools for {admin.email}. {total[0]?.n ?? 0} accounts total.
           Lookup and help only — not a public directory.
         </p>
+        {deleted ? (
+          <Flash ok={`Deleted account ${deleted}.`} />
+        ) : null}
 
         <form method="get" action="/admin" style={{ marginBottom: 16, maxWidth: 420 }}>
           <label className="label" htmlFor="q">
