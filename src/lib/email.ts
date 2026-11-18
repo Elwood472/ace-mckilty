@@ -74,21 +74,26 @@ function escapeHtml(s: string): string {
 }
 
 export function inviteEmailBody(opts: {
-  listTitle: string;
-  inviterName: string;
+  /** Sanitized owner display name(s), e.g. "Charli Bray". */
+  listOwnerLabel: string;
   inviteUrl: string;
 }): { subject: string; text: string; html: string } {
-  // Fixed copy only — never put user-controlled names/titles in outbound mail.
-  void opts.listTitle;
-  void opts.inviterName;
-  const subject = "Wish list invite on Ace McKilty Gift Registry";
+  // Owner label must already be sanitized/capped by the caller.
+  const label = opts.listOwnerLabel.trim();
+  const named = label
+    ? `a wish list (${label})`
+    : "a wish list";
+  const subject = label
+    ? `Wish list invite (${label}) on Ace McKilty Gift Registry`
+    : "Wish list invite on Ace McKilty Gift Registry";
+  const lead = `You've been invited to view ${named} on Ace McKilty Gift Registry.`;
   const text =
-    `You've been invited to view a wish list on Ace McKilty Gift Registry.\n\n` +
+    `${lead}\n\n` +
     `Open this invite link to get access:\n${opts.inviteUrl}\n\n` +
     `If you don't have an account yet, create one with this same email, then open the link again.`;
   const html = `
     <div style="font-family:Arial,Helvetica,sans-serif;font-size:14px;color:#111">
-      <p>You've been invited to view a wish list on Ace McKilty Gift Registry.</p>
+      <p>${escapeHtml(lead)}</p>
       <p><a href="${escapeHtml(opts.inviteUrl)}"
         style="display:inline-block;background:#000080;color:#fff;padding:10px 16px;text-decoration:none;font-weight:700">
         Accept invite

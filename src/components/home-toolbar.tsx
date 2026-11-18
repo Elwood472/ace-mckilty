@@ -3,9 +3,11 @@ import Link from "next/link";
 export function HomeToolbar({
   myListId,
   userId,
+  showAdmin = false,
 }: {
   myListId: string;
   userId: string;
+  showAdmin?: boolean;
 }) {
   const items: { href: string; label: string }[] = [
     { href: "/profile/edit", label: "Edit profile" },
@@ -15,6 +17,7 @@ export function HomeToolbar({
     { href: "/bought", label: "Gifts I bought" },
     { href: "/removed", label: "Gifts I removed" },
   ];
+  if (showAdmin) items.push({ href: "/admin", label: "Admin" });
 
   return (
     <nav className="home-toolbar" aria-label="My shortcuts">

@@ -20,9 +20,10 @@ export default async function FaqPage() {
         </p>
         <h3>Sharing (no friend circles)</h3>
         <p>
-          There are no overlapping friend circles. You invite people to a list
-          (email invite link when possible), or someone searches for you and
-          requests access. You approve or deny each request.
+          There are no overlapping friend circles. Share by emailing an invite
+          link from Home or from a list&apos;s invite panel. If someone already
+          has your profile link, they can request access and you approve or deny
+          it.
         </p>
         <h3>Birthdays</h3>
         <p>
@@ -43,11 +44,9 @@ export default async function FaqPage() {
         </p>
         <h3>Invites &amp; access-request email</h3>
         <p>
-          Email an invite link from home or from a list&apos;s invite panel. When
-          someone requests access to your list, owners get an email too. Both use
-          the same Resend path when <code>RESEND_API_KEY</code> is set; otherwise
-          mail is stubbed in the server log and the invite link / request still
-          works on screen.
+          Invite emails name the list owner (for example, &ldquo;a wish list
+          (Charli Bray)&rdquo;) and include the accept link. When someone
+          requests access to your list, owners get an email too.
         </p>
         <h3>Show to others starting</h3>
         <p>

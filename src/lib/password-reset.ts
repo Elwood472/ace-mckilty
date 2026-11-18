@@ -100,6 +100,62 @@ export async function requestPasswordReset(email: string): Promise<{
   return {};
 }
 
+/**
+ * Admin-only: create a reset token, email it, and always return the URL
+ * so support can paste the link if mail is delayed.
+ */
+export async function adminIssuePasswordReset(userId: string): Promise<{
+  resetUrl: string;
+  email: string;
+  sent: { ok: boolean; mode: string; error?: string };
+}> {
+  const users = await sql<{ id: string; email: string }>(
+    "select id, email from users where id = $1",
+    [userId],
+  );
+  const user = users[0];
+  if (!user) throw new Error("NOT_FOUND");
+
+  await sql(
+    `update password_reset_tokens
+     set used_at = now()
+     where user_id = $1 and used_at is null`,
+    [user.id],
+  );
+
+  const raw = randomBytes(32).toString("base64url");
+  const tokenHash = hashResetToken(raw);
+  const id = nanoid(24);
+  const expiresAt = new Date(
+    Date.now() + RESET_TTL_MIN * 60 * 1000,
+  ).toISOString();
+  await sql(
+    `insert into password_reset_tokens (id, user_id, token_hash, expires_at)
+     values ($1, $2, $3, $4::timestamptz)`,
+    [id, user.id, tokenHash, expiresAt],
+  );
+
+  const resetUrl = absoluteAppUrl(
+    `/login/reset?token=${encodeURIComponent(raw)}`,
+  );
+  const mail = passwordResetEmailBody(resetUrl);
+  const sent = await sendEmail({
+    to: user.email,
+    subject: mail.subject,
+    text: mail.text,
+    html: mail.html,
+  });
+  return {
+    resetUrl,
+    email: user.email,
+    sent: {
+      ok: sent.ok,
+      mode: sent.mode,
+      error: sent.ok ? undefined : sent.error,
+    },
+  };
+}
+
 export type ResetTokenRow = {
   id: string;
   user_id: string;

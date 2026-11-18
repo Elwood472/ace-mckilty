@@ -7,6 +7,7 @@ import { requireAppUser } from "@/lib/session";
 import { activityClass, formatMd, formatMdY } from "@/lib/dates";
 import { listPeopleToBuyFor } from "@/lib/people";
 import { ensurePersonalList } from "@/lib/lists";
+import { isAdminEmail } from "@/lib/admin";
 import {
   CreateTogetherForm,
   DecideRequestForm,
@@ -17,6 +18,7 @@ export default async function DashboardPage() {
   const user = await requireAppUser();
   const csrf = await ensureCsrfToken();
   const myListId = await ensurePersonalList(user.id, user.display_name);
+  const showAdmin = isAdminEmail(user.email);
 
   const people = await listPeopleToBuyFor(user.id);
 
@@ -90,7 +92,11 @@ export default async function DashboardPage() {
           — Home
         </p>
 
-        <HomeToolbar myListId={myListId} userId={user.id} />
+        <HomeToolbar
+          myListId={myListId}
+          userId={user.id}
+          showAdmin={showAdmin}
+        />
 
         <h2
           style={{
@@ -109,8 +115,8 @@ export default async function DashboardPage() {
 
         {people.length === 0 ? (
           <p>
-            Nobody yet. Invite someone to your list, or search for them by name
-            and request access to theirs.
+            Nobody yet. Invite someone to your list by email — when they accept,
+            they&apos;ll show up here.
           </p>
         ) : (
           <table className="legacy-table" style={{ maxWidth: 980 }}>

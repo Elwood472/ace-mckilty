@@ -143,16 +143,26 @@ export async function createListEmailInvite(
       [listId, email, token, user.id],
     );
 
-    const list = await sql<{ title: string }>(
-      "select title from wish_lists where id = $1",
+    const owners = await sql<{ display_name: string }>(
+      `select u.display_name
+       from wish_list_owners o
+       join users u on u.id = o.user_id
+       where o.list_id = $1
+       order by u.display_name`,
       [listId],
     );
     const { inviteEmailBody, sendEmail } = await import("@/lib/email");
+    const { DISPLAY_NAME_MAX, sanitizePublicLabel } = await import(
+      "@/lib/text"
+    );
+    const ownerLabel = owners
+      .map((o) => sanitizePublicLabel(o.display_name, DISPLAY_NAME_MAX))
+      .filter((n): n is string => !!n)
+      .join(", ");
     const invitePath = `/invite/${token}`;
     const inviteUrl = absoluteAppUrl(invitePath);
     const mail = inviteEmailBody({
-      listTitle: list[0]?.title ?? "a wish list",
-      inviterName: user.display_name,
+      listOwnerLabel: ownerLabel,
       inviteUrl,
     });
     const sent = await sendEmail({
