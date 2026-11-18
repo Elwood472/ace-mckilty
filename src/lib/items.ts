@@ -34,9 +34,9 @@ export type ItemFilters = {
 function sortClause(sort: SortKey = "category", dir: SortDir = "asc"): string {
   const allowed: Record<SortKey, string> = {
     title: "i.title",
-    price: "i.price nulls last",
+    price: "i.price",
     category: "i.category",
-    display_date: "i.display_date nulls last",
+    display_date: "i.display_date",
   };
   const col = allowed[sort] ?? "i.category";
   const d = dir === "desc" ? "desc" : "asc";
@@ -47,6 +47,10 @@ function sortClause(sort: SortKey = "category", dir: SortDir = "asc"): string {
   }
   if (sort === "title") {
     return `lower(i.title) ${d}`;
+  }
+  // Postgres requires: column ASC|DESC NULLS LAST (not "nulls last" before ASC).
+  if (sort === "price" || sort === "display_date") {
+    return `${col} ${d} nulls last, lower(i.title) asc`;
   }
   return `${col} ${d}, lower(i.title) asc`;
 }
