@@ -152,8 +152,14 @@ export function ProfileEditForm({
   const [state, action, pending] = useActionState(updateProfile, initial);
   const [tab, setTab] = useState<TabId>("basics");
 
+  const currentPhoto = data.picture_url?.trim() || "";
+
   return (
-    <form action={action} style={{ maxWidth: 720, marginTop: 12 }}>
+    <form
+      action={action}
+      encType="multipart/form-data"
+      style={{ maxWidth: 720, marginTop: 12 }}
+    >
       <CsrfField token={csrf} />
 
       {/* Sticky save + tabs — visible without scrolling */}
@@ -247,11 +253,53 @@ export function ProfileEditForm({
 
         <div className="panel-head">Photo</div>
         <div style={{ padding: 16 }}>
+          {currentPhoto ? (
+            <div style={{ marginBottom: 12 }}>
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={currentPhoto}
+                alt=""
+                width={160}
+                style={{
+                  maxWidth: "100%",
+                  border: "1px solid #ccc",
+                  display: "block",
+                }}
+              />
+              <label
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 6,
+                  marginTop: 8,
+                  fontSize: 13,
+                }}
+              >
+                <input type="checkbox" name="removePicture" />
+                Remove current photo
+              </label>
+            </div>
+          ) : null}
+          <label style={{ display: "block", marginBottom: 14 }}>
+            <span className="label">Upload photo</span>
+            <input
+              id="pictureFile"
+              className="field"
+              name="pictureFile"
+              type="file"
+              accept="image/jpeg,image/png,image/webp,image/gif"
+            />
+            <span
+              style={{ display: "block", marginTop: 4, fontSize: 11, color: "#555" }}
+            >
+              JPEG, PNG, WebP, or GIF — up to 2 MB
+            </span>
+          </label>
           <Field
-            label="Picture URL"
+            label="Or picture URL"
             name="pictureUrl"
             defaultValue={data.picture_url}
-            hint="Paste a link to an image"
+            hint="Optional if you upload a file. Paste a public http(s) image link."
           />
           <Field label="Caption" name="caption" defaultValue={data.caption} />
         </div>

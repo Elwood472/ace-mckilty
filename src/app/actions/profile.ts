@@ -7,8 +7,18 @@ import { requireUser } from "@/lib/session";
 import { hashPassword, verifyPassword } from "@/lib/password";
 import { ALL_QUESTIONNAIRE } from "@/lib/profile-fields";
 import { destroyOtherSessions } from "@/lib/session";
-import { normalizeStoredHttpUrl } from "@/lib/url-safety";
+import {
+  deleteProfilePhoto,
+  PROFILE_PHOTO_MAX_BYTES,
+  PROFILE_PHOTO_TYPES,
+  profilePhotoPath,
+  upsertProfilePhoto,
+} from "@/lib/profile-photo";
 import { DISPLAY_NAME_MAX, sanitizePublicLabel } from "@/lib/text";
+import {
+  normalizeStoredHttpUrl,
+  safeProfilePictureSrc,
+} from "@/lib/url-safety";
 
 function s(fd: FormData, key: string): string {
   const v = fd.get(key);
@@ -73,10 +83,42 @@ export async function updateProfile(
       "shirt_size = $8",
       "profile_modified_at = now()",
     ];
+
+    const removePicture = s(formData, "removePicture") === "on";
+    const pictureFile = formData.get("pictureFile");
     const pictureRaw = s(formData, "pictureUrl");
-    const pictureUrl = pictureRaw ? normalizeStoredHttpUrl(pictureRaw) : "";
-    if (pictureRaw && !pictureUrl) {
-      return { error: "Picture URL must be a public http(s) link." };
+    let pictureUrl = "";
+
+    if (removePicture) {
+      await deleteProfilePhoto(user.id);
+      pictureUrl = "";
+    } else if (pictureFile instanceof File && pictureFile.size > 0) {
+      if (pictureFile.size > PROFILE_PHOTO_MAX_BYTES) {
+        return { error: "Photo must be 2 MB or smaller." };
+      }
+      const type = pictureFile.type.toLowerCase();
+      if (!PROFILE_PHOTO_TYPES.has(type)) {
+        return { error: "Photo must be a JPEG, PNG, WebP, or GIF." };
+      }
+      const bytes = Buffer.from(await pictureFile.arrayBuffer());
+      await upsertProfilePhoto(user.id, type, bytes);
+      pictureUrl = profilePhotoPath(user.id);
+    } else if (pictureRaw) {
+      // Keep an existing uploaded path, or accept a public http(s) URL.
+      const kept = safeProfilePictureSrc(pictureRaw);
+      if (kept?.startsWith("/api/profile-photo/")) {
+        pictureUrl = kept;
+      } else {
+        const external = normalizeStoredHttpUrl(pictureRaw);
+        if (!external) {
+          return { error: "Picture URL must be a public http(s) link." };
+        }
+        await deleteProfilePhoto(user.id);
+        pictureUrl = external;
+      }
+    } else {
+      await deleteProfilePhoto(user.id);
+      pictureUrl = "";
     }
 
     const params: unknown[] = [

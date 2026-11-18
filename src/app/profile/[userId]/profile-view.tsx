@@ -8,7 +8,7 @@ import {
   PROFILE_PIVOT,
   type ProfileField,
 } from "@/lib/profile-fields";
-import { safeExternalHref } from "@/lib/url-safety";
+import { safeProfilePictureSrc } from "@/lib/url-safety";
 
 export type ProfileViewData = {
   display_name: string;
@@ -166,10 +166,10 @@ export function ProfileView({
 
         <div className="panel-head">Photo</div>
         <div style={{ padding: 16 }}>
-          {safeExternalHref(data.picture_url) ? (
+          {safeProfilePictureSrc(data.picture_url) ? (
             // eslint-disable-next-line @next/next/no-img-element
             <img
-              src={safeExternalHref(data.picture_url)!}
+              src={safeProfilePictureSrc(data.picture_url)!}
               alt=""
               width={280}
               style={{

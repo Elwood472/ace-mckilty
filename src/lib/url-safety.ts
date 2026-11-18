@@ -3,6 +3,9 @@
  * Client components must import from here, not from `@/lib/urls`.
  */
 
+const USER_ID_RE =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
 export function safeExternalHref(
   raw: string | null | undefined,
 ): string | null {
@@ -17,6 +20,23 @@ export function safeExternalHref(
   } catch {
     return null;
   }
+}
+
+/** http(s) URL or same-origin uploaded profile photo path. */
+export function safeProfilePictureSrc(
+  raw: string | null | undefined,
+): string | null {
+  if (!raw) return null;
+  const trimmed = raw.trim();
+  if (!trimmed) return null;
+  if (trimmed.startsWith("/api/profile-photo/")) {
+    const rest = trimmed.slice("/api/profile-photo/".length);
+    const id = rest.split("?")[0]?.split("#")[0] ?? "";
+    if (!USER_ID_RE.test(id)) return null;
+    if (trimmed.includes("://") || trimmed.includes("\\")) return null;
+    return trimmed;
+  }
+  return safeExternalHref(trimmed);
 }
 
 /** Same as safeExternalHref; empty / unsafe becomes "". */
