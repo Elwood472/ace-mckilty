@@ -64,8 +64,8 @@ export default async function SecuritySettingsPage({
         ) : (
           <p style={{ color: "#555", maxWidth: 560 }}>
             {setupRequired
-              ? "Turn on an authenticator app and/or email codes before you continue. At least one method is required."
-              : "Manage your second step after password. Keep at least one method on."}
+              ? "Turn on an authenticator app and/or email codes before you continue. At least one method is required — an authenticator app is recommended."
+              : "Manage your second step after password. Keep at least one method on; an authenticator app is recommended."}
           </p>
         )}
         <SecuritySettingsForm

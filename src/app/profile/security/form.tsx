@@ -161,8 +161,16 @@ export function SecuritySettingsForm({
       <section className="panel" style={{ padding: 16 }}>
         <h2 style={{ fontSize: 16, margin: "0 0 8px" }}>Authenticator app</h2>
         <p style={{ fontSize: 13, color: "#555", marginTop: 0 }}>
-          Use Google Authenticator, Authy, 1Password, or similar. Works offline
-          after setup.
+          Recommended:{" "}
+          <a
+            href="https://apps.apple.com/us/app/totp-authenticator-fast-2fa/id1404230533"
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            TOTP Authenticator - Fast 2FA
+          </a>
+          . Google Authenticator, Authy, 1Password, and similar apps also work.
+          Codes work offline after setup.
         </p>
         <Flash state={totpBegin} />
         <Flash state={totpConfirm} />
