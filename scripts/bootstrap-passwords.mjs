@@ -1,9 +1,12 @@
 /**
- * Build-time helper (also mirrored at first DB connect in the app).
- * When BOOTSTRAP_PASSWORD + BOOTSTRAP_EMAILS are set and
- * password_bootstrap_v2_lock is unset, sets that password for those
- * accounts, then locks forever.
- * Never logs the password or email values. Not an HTTP route.
+ * One-shot CLI password set for imported accounts.
+ * When BOOTSTRAP_PASSWORD + BOOTSTRAP_EMAILS are set,
+ * password_bootstrap_v2_lock is unset, and BOOTSTRAP_CONFIRM=YES,
+ * sets that password for those accounts, then locks forever.
+ *
+ * Never runs against a production/hosted DATABASE_URL unless
+ * BOOTSTRAP_ALLOW_HOSTED=1 is also set. Never an HTTP route.
+ * Never logs the password or email values.
  */
 import pg from "pg";
 import bcrypt from "bcryptjs";
@@ -17,6 +20,11 @@ const url =
   process.env.DATABASE_URL_UNPOOLED?.trim() ||
   process.env.DATABASE_URL?.trim() ||
   "";
+const confirmed = process.env.BOOTSTRAP_CONFIRM?.trim() === "YES";
+const allowHosted = process.env.BOOTSTRAP_ALLOW_HOSTED?.trim() === "1";
+const hostedLike =
+  process.env.NODE_ENV === "production" ||
+  /apps\.grok\.bot|neon\.tech|amazonaws\.com|supabase\.co/i.test(url);
 
 if (!url) {
   console.log("bootstrap-passwords: no DATABASE_URL — skip");
@@ -33,6 +41,18 @@ if (password.length < 8) {
 if (BOOTSTRAP_EMAILS.length === 0) {
   console.log("bootstrap-passwords: BOOTSTRAP_EMAILS unset — skip");
   process.exit(0);
+}
+if (!confirmed) {
+  console.error(
+    "bootstrap-passwords: refused — set BOOTSTRAP_CONFIRM=YES to overwrite passwords",
+  );
+  process.exit(1);
+}
+if (hostedLike && !allowHosted) {
+  console.error(
+    "bootstrap-passwords: refused — looks like a hosted/production database; set BOOTSTRAP_ALLOW_HOSTED=1 only if intentional",
+  );
+  process.exit(1);
 }
 
 const client = new pg.Client({

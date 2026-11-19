@@ -9,6 +9,7 @@ import { ALL_QUESTIONNAIRE } from "@/lib/profile-fields";
 import { destroyOtherSessions } from "@/lib/session";
 import {
   deleteProfilePhoto,
+  detectProfilePhotoType,
   PROFILE_PHOTO_MAX_BYTES,
   PROFILE_PHOTO_TYPES,
   profilePhotoPath,
@@ -96,11 +97,19 @@ export async function updateProfile(
       if (pictureFile.size > PROFILE_PHOTO_MAX_BYTES) {
         return { error: "Photo must be 2 MB or smaller." };
       }
-      const type = pictureFile.type.toLowerCase();
-      if (!PROFILE_PHOTO_TYPES.has(type)) {
+      const declared = pictureFile.type.toLowerCase();
+      if (declared && !PROFILE_PHOTO_TYPES.has(declared)) {
         return { error: "Photo must be a JPEG, PNG, WebP, or GIF." };
       }
       const bytes = Buffer.from(await pictureFile.arrayBuffer());
+      const type = detectProfilePhotoType(bytes);
+      if (!type) {
+        return { error: "Photo must be a JPEG, PNG, WebP, or GIF." };
+      }
+      // Prefer sniffed type over browser MIME (reject mismatched spoofing).
+      if (declared && declared !== type) {
+        return { error: "Photo file contents do not match the file type." };
+      }
       await upsertProfilePhoto(user.id, type, bytes);
       pictureUrl = profilePhotoPath(user.id);
     } else if (pictureRaw) {

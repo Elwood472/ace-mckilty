@@ -96,9 +96,27 @@ function safeEqual(a: string, b: string): boolean {
   return timingSafeEqual(ba, bb);
 }
 
+/** Cloudflare publishes these as always-pass / always-fail test keys. */
+const TURNSTILE_TEST_SITE_KEYS = new Set([
+  "1x00000000000000000000AA",
+  "2x00000000000000000000AB",
+  "3x00000000000000000000FF",
+]);
+const TURNSTILE_TEST_SECRETS = new Set([
+  "1x0000000000000000000000000000000AA",
+  "2x0000000000000000000000000000000AA",
+  "3x0000000000000000000000000000000AA",
+]);
+
 export function getTurnstileSiteKey(): string | null {
   const configured = process.env.TURNSTILE_SITE_KEY?.trim();
-  if (configured) return configured;
+  if (configured) {
+    // Hosted/production must not use Cloudflare always-pass test keys.
+    if (requiresTurnstile() && TURNSTILE_TEST_SITE_KEYS.has(configured)) {
+      return null;
+    }
+    return configured;
+  }
   // Local-only Cloudflare test key (always passes). Never in production/hosted.
   if (!requiresTurnstile()) {
     return "1x00000000000000000000AA";
@@ -108,7 +126,12 @@ export function getTurnstileSiteKey(): string | null {
 
 function getTurnstileSecret(): string | null {
   const configured = process.env.TURNSTILE_SECRET_KEY?.trim();
-  if (configured) return configured;
+  if (configured) {
+    if (requiresTurnstile() && TURNSTILE_TEST_SECRETS.has(configured)) {
+      return null;
+    }
+    return configured;
+  }
   if (!requiresTurnstile()) {
     return "1x0000000000000000000000000000000AA";
   }
