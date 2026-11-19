@@ -11,6 +11,7 @@ import {
   deleteProfilePhoto,
   detectProfilePhotoType,
   PROFILE_PHOTO_MAX_BYTES,
+  PROFILE_PHOTO_MAX_LABEL,
   PROFILE_PHOTO_TYPES,
   profilePhotoPath,
   upsertProfilePhoto,
@@ -95,7 +96,9 @@ export async function updateProfile(
       pictureUrl = "";
     } else if (pictureFile instanceof File && pictureFile.size > 0) {
       if (pictureFile.size > PROFILE_PHOTO_MAX_BYTES) {
-        return { error: "Photo must be 2 MB or smaller." };
+        return {
+          error: `That photo is too big. Choose a file ${PROFILE_PHOTO_MAX_LABEL} or smaller.`,
+        };
       }
       const declared = pictureFile.type.toLowerCase();
       if (declared && !PROFILE_PHOTO_TYPES.has(declared)) {
@@ -157,7 +160,13 @@ export async function updateProfile(
     revalidatePath(`/profile/${user.id}`);
     revalidatePath("/profile/edit");
     return { ok: "Profile saved." };
-  } catch {
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    if (/Body exceeded|body.*limit|Entity too large|413|payload/i.test(msg)) {
+      return {
+        error: `That photo is too big. Choose a file ${PROFILE_PHOTO_MAX_LABEL} or smaller.`,
+      };
+    }
     return { error: "Could not save profile." };
   }
 }

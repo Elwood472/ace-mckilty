@@ -3,16 +3,14 @@ import { sql } from "@/lib/db";
 import { getPersonalListId } from "@/lib/lists";
 import { safeProfilePictureSrc } from "@/lib/url-safety";
 
+export {
+  PROFILE_PHOTO_MAX_BYTES,
+  PROFILE_PHOTO_MAX_LABEL,
+  PROFILE_PHOTO_TYPES,
+} from "@/lib/profile-photo-limits";
+
 const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
-
-export const PROFILE_PHOTO_MAX_BYTES = 2 * 1024 * 1024;
-export const PROFILE_PHOTO_TYPES = new Set([
-  "image/jpeg",
-  "image/png",
-  "image/webp",
-  "image/gif",
-]);
 
 /** Detect image type from magic bytes — never trust the browser MIME alone. */
 export function detectProfilePhotoType(bytes: Buffer): string | null {

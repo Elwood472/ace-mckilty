@@ -28,6 +28,9 @@ const nextConfig: NextConfig = {
   experimental: {
     serverActions: {
       allowedOrigins: serverActionOrigins(),
+      // Default is 1MB; profile photos allow up to 2MB, so leave headroom
+      // for multipart framing so our action can return a friendly size error.
+      bodySizeLimit: "3mb",
     },
   },
   serverExternalPackages: ["@electric-sql/pglite"],
