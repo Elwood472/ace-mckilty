@@ -58,11 +58,10 @@ export function TurnstileField({ siteKey }: { siteKey: string }) {
     loadTurnstile()
       .then(() => {
         if (cancelled || !ref.current || !window.turnstile) return;
+        // Managed mode often auto-passes (spin → green check) for real browsers.
         widgetId.current = window.turnstile.render(ref.current, {
           sitekey: siteKey,
           theme: "light",
-          // Managed mode: often auto-passes (spin → green check) for real browsers.
-          appearance: "always",
         });
       })
       .catch(() => {
