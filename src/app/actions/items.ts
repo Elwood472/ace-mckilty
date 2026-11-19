@@ -363,6 +363,31 @@ export async function purgeBoughtItem(
   }
 }
 
+/** Buyer-only: track whether you physically received a gift you marked bought. */
+export async function setBoughtReceived(
+  _prev: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  try {
+    await assertCsrf(formData.get("csrf"));
+    const user = await requireUser();
+    const purchaseId = s(formData, "purchaseId");
+    const received = s(formData, "received") === "1";
+    const rows = await sql(
+      `update purchases set buyer_received = $3
+       where id = $1 and buyer_user_id = $2 and buyer_purged = false
+       returning id`,
+      [purchaseId, user.id, received],
+    );
+    if (!rows.length) return { error: "Not your purchase." };
+    await touchLastActive(user.id);
+    revalidatePath("/bought");
+    return { ok: received ? "Marked received." : "Cleared received." };
+  } catch {
+    return { error: "Could not update received." };
+  }
+}
+
 export async function markPurchased(
   _prev: ActionState,
   formData: FormData,
