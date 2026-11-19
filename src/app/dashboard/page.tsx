@@ -107,40 +107,6 @@ export default async function DashboardPage() {
             fontSize: 16,
           }}
         >
-          Updates
-        </h2>
-        {updates.length === 0 ? (
-          <p style={{ fontSize: 13, color: "#555", maxWidth: 560 }}>
-            Nothing recent. Gift adds on lists you can shop, accepted access
-            requests, and people who can newly see your list show up here.
-          </p>
-        ) : (
-          <table className="legacy-table" style={{ maxWidth: 720 }}>
-            <tbody>
-              {updates.map((u) => (
-                <tr key={u.id}>
-                  <td>{u.text}</td>
-                  <td
-                    align="right"
-                    className={activityClass(u.at)}
-                    style={{ whiteSpace: "nowrap", width: 1 }}
-                  >
-                    {formatMdY(u.at)}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        )}
-
-        <h2
-          style={{
-            color: "#000080",
-            marginTop: 28,
-            marginBottom: 8,
-            fontSize: 16,
-          }}
-        >
           People you can buy for
           <span style={{ fontWeight: 400, fontSize: 12, color: "#333" }}>
             {" "}
@@ -304,6 +270,40 @@ export default async function DashboardPage() {
             </div>
           </div>
         </div>
+
+        <h2
+          style={{
+            color: "#000080",
+            marginTop: 28,
+            marginBottom: 8,
+            fontSize: 16,
+          }}
+        >
+          Updates
+        </h2>
+        {updates.length === 0 ? (
+          <p style={{ fontSize: 13, color: "#555", maxWidth: 560 }}>
+            Nothing recent. Gift adds on lists you can shop, accepted access
+            requests, and people who can newly see your list show up here.
+          </p>
+        ) : (
+          <table className="legacy-table" style={{ maxWidth: 720 }}>
+            <tbody>
+              {updates.map((u) => (
+                <tr key={u.id}>
+                  <td>{u.text}</td>
+                  <td
+                    align="right"
+                    className={activityClass(u.at)}
+                    style={{ whiteSpace: "nowrap", width: 1 }}
+                  >
+                    {formatMdY(u.at)}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
 
         <p
           style={{
