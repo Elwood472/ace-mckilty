@@ -1,6 +1,5 @@
 "use client";
 
-import Link from "next/link";
 import { useActionState, useEffect, useState } from "react";
 import {
   createListEmailInvite,
@@ -102,7 +101,7 @@ export function InviteMyListForm({
 export function FindByEmailForm({ csrf }: { csrf: string }) {
   const [state, action, pending] = useActionState(
     requestListAccessByEmail,
-    initial as ActionState & { listId?: string },
+    initial,
   );
 
   return (
@@ -126,13 +125,9 @@ export function FindByEmailForm({ csrf }: { csrf: string }) {
       </button>
       <p style={{ fontSize: 12, color: "#555", margin: 0 }}>
         Exact email only — no name search. We won&apos;t say whether that email
-        has an account; if it does, they must approve your request.
+        has an account; if it does, they must approve your request. Lists you
+        already can view stay on Home.
       </p>
-      {"listId" in state && state.listId ? (
-        <p style={{ margin: "8px 0 0", fontSize: 13 }}>
-          <Link href={`/lists/${state.listId}`}>Open their list</Link>
-        </p>
-      ) : null}
     </form>
   );
 }

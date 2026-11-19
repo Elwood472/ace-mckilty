@@ -4,6 +4,7 @@ import {
   allowMathCaptchaFallback,
   getTurnstileSiteKey,
   issueMathChallenge,
+  turnstileKeysReady,
 } from "@/lib/captcha";
 import { ensureCsrfToken } from "@/lib/csrf";
 import { getCurrentUser } from "@/lib/session";
@@ -14,7 +15,9 @@ export default async function ForgotPasswordPage() {
   if (user) redirect("/dashboard");
 
   const csrf = await ensureCsrfToken();
-  const turnstileSiteKey = getTurnstileSiteKey();
+  const turnstileSiteKey = turnstileKeysReady()
+    ? getTurnstileSiteKey()
+    : null;
   const mathChallenge =
     !turnstileSiteKey && allowMathCaptchaFallback()
       ? await issueMathChallenge()

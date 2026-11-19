@@ -5,6 +5,7 @@ import {
   allowMathCaptchaFallback,
   getTurnstileSiteKey,
   issueMathChallenge,
+  turnstileKeysReady,
 } from "@/lib/captcha";
 import { ensureCsrfToken } from "@/lib/csrf";
 import { findValidResetToken } from "@/lib/password-reset";
@@ -23,7 +24,9 @@ export default async function ResetPasswordPage({
   const token = typeof sp.token === "string" ? sp.token.trim() : "";
   const valid = token ? await findValidResetToken(token) : null;
   const csrf = await ensureCsrfToken();
-  const turnstileSiteKey = getTurnstileSiteKey();
+  const turnstileSiteKey = turnstileKeysReady()
+    ? getTurnstileSiteKey()
+    : null;
   const mathChallenge =
     !turnstileSiteKey && allowMathCaptchaFallback()
       ? await issueMathChallenge()

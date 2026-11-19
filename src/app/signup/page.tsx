@@ -7,6 +7,7 @@ import {
   allowMathCaptchaFallback,
   getTurnstileSiteKey,
   issueMathChallenge,
+  turnstileKeysReady,
 } from "@/lib/captcha";
 
 export default async function SignupPage() {
@@ -16,7 +17,9 @@ export default async function SignupPage() {
     redirect("/dashboard");
   }
   const csrf = await ensureCsrfToken();
-  const turnstileSiteKey = getTurnstileSiteKey();
+  const turnstileSiteKey = turnstileKeysReady()
+    ? getTurnstileSiteKey()
+    : null;
   const mathChallenge =
     !turnstileSiteKey && allowMathCaptchaFallback()
       ? await issueMathChallenge()

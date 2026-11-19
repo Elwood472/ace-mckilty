@@ -108,11 +108,22 @@ const TURNSTILE_TEST_SECRETS = new Set([
   "3x0000000000000000000000000000000AA",
 ]);
 
+function isTurnstileTestSiteKey(key: string): boolean {
+  return TURNSTILE_TEST_SITE_KEYS.has(key) || /^[123]x0{20}/i.test(key);
+}
+
+function isTurnstileTestSecret(key: string): boolean {
+  return TURNSTILE_TEST_SECRETS.has(key) || /^[123]x0{30}/i.test(key);
+}
+
 export function getTurnstileSiteKey(): string | null {
   const configured = process.env.TURNSTILE_SITE_KEY?.trim();
   if (configured) {
     // Hosted/production must not use Cloudflare always-pass test keys.
-    if (requiresTurnstile() && TURNSTILE_TEST_SITE_KEYS.has(configured)) {
+    if (requiresTurnstile() && isTurnstileTestSiteKey(configured)) {
+      console.warn(
+        "[captcha] TURNSTILE_SITE_KEY looks like a Cloudflare test key — ignored on hosted/production",
+      );
       return null;
     }
     return configured;
@@ -127,7 +138,10 @@ export function getTurnstileSiteKey(): string | null {
 function getTurnstileSecret(): string | null {
   const configured = process.env.TURNSTILE_SECRET_KEY?.trim();
   if (configured) {
-    if (requiresTurnstile() && TURNSTILE_TEST_SECRETS.has(configured)) {
+    if (requiresTurnstile() && isTurnstileTestSecret(configured)) {
+      console.warn(
+        "[captcha] TURNSTILE_SECRET_KEY looks like a Cloudflare test key — ignored on hosted/production",
+      );
       return null;
     }
     return configured;
@@ -136,6 +150,11 @@ function getTurnstileSecret(): string | null {
     return "1x0000000000000000000000000000000AA";
   }
   return null;
+}
+
+/** True when both real (non-test) Turnstile keys are available for this runtime. */
+export function turnstileKeysReady(): boolean {
+  return !!getTurnstileSiteKey() && !!getTurnstileSecret();
 }
 
 export type MathChallenge = {
@@ -278,9 +297,7 @@ export async function assertHuman(
     return { ok: false, error: "Form expired. Refresh and try again." };
   }
 
-  const siteKey = getTurnstileSiteKey();
-  const secret = getTurnstileSecret();
-  if (siteKey && secret) {
+  if (turnstileKeysReady()) {
     const token =
       typeof formData.get("cf-turnstile-response") === "string"
         ? String(formData.get("cf-turnstile-response")).trim()
@@ -288,7 +305,8 @@ export async function assertHuman(
     return verifyTurnstile(token, ip);
   }
 
-  // Hosted / production: never fall back to client-solvable math CAPTCHA.
+  // Hosted / production: never fall back to client-solvable math CAPTCHA,
+  // and never accept missing or Cloudflare-published test keys.
   if (requiresTurnstile()) {
     return {
       ok: false,

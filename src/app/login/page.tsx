@@ -5,6 +5,7 @@ import {
   allowMathCaptchaFallback,
   getTurnstileSiteKey,
   issueMathChallenge,
+  turnstileKeysReady,
 } from "@/lib/captcha";
 import { ensureCsrfToken } from "@/lib/csrf";
 import { ensureTwoFactorEnrolled, getCurrentUser } from "@/lib/session";
@@ -23,8 +24,10 @@ export default async function LoginPage({
     redirect(next);
   }
   const csrf = await ensureCsrfToken();
-  // Hosted requires Turnstile; math CAPTCHA is local-only.
-  const turnstileSiteKey = getTurnstileSiteKey();
+  // Hosted requires both real Turnstile keys; math CAPTCHA is local-only.
+  const turnstileSiteKey = turnstileKeysReady()
+    ? getTurnstileSiteKey()
+    : null;
   const mathChallenge =
     !turnstileSiteKey && allowMathCaptchaFallback()
       ? await issueMathChallenge()

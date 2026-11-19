@@ -25,15 +25,15 @@ export type ActionState = { error?: string; ok?: string };
 
 /**
  * Exact-email access request. Does not reveal whether the email is registered:
- * unknown / no list / created / already-pending share one success message.
- * Only "already have access" names a concrete list link (caller already can view).
+ * unknown / no list / created / already-pending / already-have-access share one
+ * opaque success message. Never returns a list id (avoids confirming accounts).
  */
 export async function requestListAccessByEmail(
   _prev: ActionState,
   formData: FormData,
-): Promise<ActionState & { listId?: string }> {
+): Promise<ActionState> {
   const opaqueOk =
-    "If that email has an account, your request was recorded. They must approve before you can see their list.";
+    "If that email has an account, your request was recorded. They must approve before you can see their list. If you already shop for them, open their list from Home.";
   try {
     await assertCsrf(formData.get("csrf"));
     const user = await requireUser();
@@ -78,10 +78,8 @@ export async function requestListAccessByEmail(
     }
 
     if (await canViewList(listId, user.id)) {
-      return {
-        ok: "You already have access to that person's list.",
-        listId,
-      };
+      // Same opaque copy — do not confirm the account or return a list id.
+      return { ok: opaqueOk };
     }
 
     // Reuse the same gates as requestListAccess (rate limits + account age).

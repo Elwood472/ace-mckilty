@@ -61,6 +61,8 @@ export function TurnstileField({ siteKey }: { siteKey: string }) {
         widgetId.current = window.turnstile.render(ref.current, {
           sitekey: siteKey,
           theme: "light",
+          // Managed mode: often auto-passes (spin → green check) for real browsers.
+          appearance: "always",
         });
       })
       .catch(() => {
@@ -82,7 +84,8 @@ export function TurnstileField({ siteKey }: { siteKey: string }) {
     <div style={{ marginBottom: 12 }}>
       <div ref={ref} />
       <p style={{ fontSize: 11, color: "#555", margin: "6px 0 0" }}>
-        Protected by Cloudflare Turnstile
+        Cloudflare Turnstile checks that you&apos;re human. A brief spin and
+        green check is normal — most people never need a puzzle.
       </p>
     </div>
   );
