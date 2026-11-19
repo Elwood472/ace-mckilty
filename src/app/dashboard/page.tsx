@@ -5,6 +5,7 @@ import { ensureCsrfToken } from "@/lib/csrf";
 import { sql } from "@/lib/db";
 import { requireAppUser } from "@/lib/session";
 import { activityClass, formatMd, formatMdY } from "@/lib/dates";
+import { listHomeUpdates } from "@/lib/home-updates";
 import { listPeopleToBuyFor } from "@/lib/people";
 import { ensurePersonalList } from "@/lib/lists";
 import { isProvisionedAdmin } from "@/lib/admin";
@@ -21,7 +22,10 @@ export default async function DashboardPage() {
   const myListId = await ensurePersonalList(user.id, user.display_name);
   const showAdmin = isProvisionedAdmin(user);
 
-  const people = await listPeopleToBuyFor(user.id);
+  const [people, updates] = await Promise.all([
+    listPeopleToBuyFor(user.id),
+    listHomeUpdates(user.id),
+  ]);
 
   const incoming = await sql<{
     id: string;
@@ -94,6 +98,40 @@ export default async function DashboardPage() {
         </p>
 
         <HomeToolbar myListId={myListId} userId={user.id} />
+
+        <h2
+          style={{
+            color: "#000080",
+            marginTop: 28,
+            marginBottom: 8,
+            fontSize: 16,
+          }}
+        >
+          Updates
+        </h2>
+        {updates.length === 0 ? (
+          <p style={{ fontSize: 13, color: "#555", maxWidth: 560 }}>
+            Nothing recent. Gift adds on lists you can shop, accepted access
+            requests, and people who can newly see your list show up here.
+          </p>
+        ) : (
+          <table className="legacy-table" style={{ maxWidth: 720 }}>
+            <tbody>
+              {updates.map((u) => (
+                <tr key={u.id}>
+                  <td>{u.text}</td>
+                  <td
+                    align="right"
+                    className={activityClass(u.at)}
+                    style={{ whiteSpace: "nowrap", width: 1 }}
+                  >
+                    {formatMdY(u.at)}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
 
         <h2
           style={{
