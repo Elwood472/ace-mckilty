@@ -6,6 +6,7 @@ import {
   adminClearRateLimits,
   adminDeleteUser,
   adminGrantAccess,
+  adminReassignPurchase,
   adminResendInvite,
   adminResetTwoFactor,
   adminRevokeAccess,
@@ -271,6 +272,45 @@ function Reset2faForm({
       <button type="submit" className="btn" disabled={pending}>
         {pending ? "Resetting…" : "Reset 2FA"}
       </button>
+    </form>
+  );
+}
+
+export function ReassignPurchaseForm({
+  csrf,
+  targetUserId,
+  purchaseId,
+  itemTitle,
+}: {
+  csrf: string;
+  targetUserId: string;
+  purchaseId: string;
+  itemTitle: string;
+}) {
+  const [state, action, pending] = useActionState(
+    adminReassignPurchase,
+    initial,
+  );
+  return (
+    <form action={action} style={{ marginTop: 4 }}>
+      <CsrfField token={csrf} />
+      <Flash error={state.error} ok={state.ok} />
+      <input type="hidden" name="targetUserId" value={targetUserId} />
+      <input type="hidden" name="purchaseId" value={purchaseId} />
+      <div style={{ display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center" }}>
+        <input
+          name="newBuyerEmail"
+          type="email"
+          className="field"
+          placeholder="New buyer email"
+          required
+          style={{ minWidth: 180, margin: 0 }}
+          aria-label={`Reassign ${itemTitle} to email`}
+        />
+        <button type="submit" className="btn" disabled={pending}>
+          {pending ? "…" : "Reassign"}
+        </button>
+      </div>
     </form>
   );
 }
