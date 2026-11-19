@@ -11,7 +11,7 @@ import { SiteHeader } from "@/components/site-header";
 import { absoluteAppUrl } from "@/lib/app-url";
 import { requireAdmin } from "@/lib/admin";
 import { ensureCsrfToken } from "@/lib/csrf";
-import { formatMdY } from "@/lib/dates";
+import { formatMdY, formatMdYTime } from "@/lib/dates";
 import { sql } from "@/lib/db";
 
 type Props = { params: Promise<{ userId: string }> };
@@ -26,10 +26,12 @@ export default async function AdminUserDetailPage({ params }: Props) {
     email: string;
     display_name: string;
     created_at: string;
+    last_active_at: string | null;
     totp_enabled: boolean;
     email_2fa_enabled: boolean;
   }>(
     `select id, email, display_name, created_at::text as created_at,
+            last_active_at::text as last_active_at,
             totp_enabled, email_2fa_enabled
      from users where id = $1`,
     [userId],
@@ -180,7 +182,8 @@ export default async function AdminUserDetailPage({ params }: Props) {
         <p style={{ fontSize: 13, marginTop: 4 }}>
           {user.email}
           <br />
-          Joined {formatMdY(user.created_at)} · Sessions{" "}
+          Joined {formatMdY(user.created_at)} · Last active{" "}
+          {formatMdYTime(user.last_active_at)} · Sessions{" "}
           {sessionCount[0]?.n ?? 0} · 2FA{" "}
           {[
             user.totp_enabled ? "authenticator" : null,
@@ -188,6 +191,11 @@ export default async function AdminUserDetailPage({ params }: Props) {
           ]
             .filter(Boolean)
             .join(", ") || "none"}
+          <br />
+          <span style={{ color: "#555", fontSize: 12 }}>
+            Last active updates on login, gift changes, purchases, and
+            profile/colors saves (not which action).
+          </span>
           <br />
           <Link href={`/profile/${user.id}`}>Profile</Link>
           {ownedLists[0] ? (

@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
+import { touchLastActive } from "@/lib/activity";
 import { sql, withTransaction } from "@/lib/db";
 import { assertCsrf } from "@/lib/csrf";
 import { requireUser } from "@/lib/session";
@@ -145,6 +146,7 @@ export async function createItem(
       }
     }
 
+    await touchLastActive(user.id);
     await revalidateList(listId);
     return { ok: "Item added." };
   } catch (e) {
@@ -248,6 +250,7 @@ export async function updateItem(
       }
     }
 
+    await touchLastActive(user.id);
     await revalidateItemEdit(listId, itemId);
   } catch {
     return { error: "Could not update item." };
@@ -274,6 +277,7 @@ export async function deleteItem(
        where id = $1`,
       [itemId],
     );
+    await touchLastActive(user.id);
     await revalidateList(items[0].list_id);
     revalidatePath("/removed");
     return { ok: "Item removed (can put back from Removed)." };
@@ -301,6 +305,7 @@ export async function restoreItem(
        where id = $1`,
       [itemId],
     );
+    await touchLastActive(user.id);
     await revalidateList(items[0].list_id);
     revalidatePath("/removed");
     return { ok: "Put back on your list." };
@@ -327,6 +332,7 @@ export async function purgeRemovedItem(
       `update items set user_purged = true, updated_at = now() where id = $1`,
       [itemId],
     );
+    await touchLastActive(user.id);
     revalidatePath("/removed");
     return { ok: "Purged from removed list." };
   } catch {
@@ -349,6 +355,7 @@ export async function purgeBoughtItem(
       [purchaseId, user.id],
     );
     if (!rows.length) return { error: "Not your purchase." };
+    await touchLastActive(user.id);
     revalidatePath("/bought");
     return { ok: "Cleared from gifts you bought." };
   } catch {
@@ -443,6 +450,7 @@ export async function markPurchased(
       return { ok: "Marked as purchased." } as const;
     });
 
+    if (result.ok) await touchLastActive(user.id);
     await revalidateList(item.list_id);
     return result;
   } catch (e) {
@@ -481,6 +489,7 @@ export async function unpurchase(
       "delete from purchases where item_id = $1 and buyer_user_id = $2",
       [itemId, user.id],
     );
+    await touchLastActive(user.id);
     await revalidateList(items[0].list_id);
     return { ok: "Purchase cleared." };
   } catch {

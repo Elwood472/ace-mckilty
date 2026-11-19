@@ -1,6 +1,7 @@
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { nanoid } from "nanoid";
+import { touchLastActive } from "./activity";
 import { sql } from "./db";
 import type { User } from "./types";
 
@@ -20,6 +21,7 @@ export async function createSession(userId: string): Promise<string> {
      values ($1, $2, now() + interval '30 days')`,
     [id, userId],
   );
+  await touchLastActive(userId);
   const jar = await cookies();
   jar.set(SESSION_COOKIE, id, {
     httpOnly: true,

@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { touchLastActive } from "@/lib/activity";
 import { sql } from "@/lib/db";
 import { assertCsrf } from "@/lib/csrf";
 import { requireUser } from "@/lib/session";
@@ -84,6 +85,7 @@ export async function updateProfile(
       "pants_size = $7",
       "shirt_size = $8",
       "profile_modified_at = now()",
+      "last_active_at = greatest(coalesce(last_active_at, '-infinity'::timestamptz), now())",
     ];
 
     const removePicture = s(formData, "removePicture") === "on";

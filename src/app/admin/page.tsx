@@ -4,7 +4,7 @@ import { SiteHeader } from "@/components/site-header";
 import { requireAdmin } from "@/lib/admin";
 import { ensureCsrfToken } from "@/lib/csrf";
 import { sql } from "@/lib/db";
-import { formatMdY } from "@/lib/dates";
+import { activityClass, formatMdY, formatMdYTime } from "@/lib/dates";
 
 type Props = {
   searchParams: Promise<{ q?: string; deleted?: string }>;
@@ -23,19 +23,21 @@ export default async function AdminUsersPage({ searchParams }: Props) {
         email: string;
         display_name: string;
         created_at: string;
+        last_active_at: string | null;
         totp_enabled: boolean;
         email_2fa_enabled: boolean;
         session_count: number;
       }>(
         `select u.id, u.email, u.display_name,
                 u.created_at::text as created_at,
+                u.last_active_at::text as last_active_at,
                 u.totp_enabled, u.email_2fa_enabled,
                 (select count(*)::int from sessions s
                   where s.user_id = u.id and s.expires_at > now()) as session_count
          from users u
          where u.email ilike '%' || $1 || '%'
             or u.display_name ilike '%' || $1 || '%'
-         order by u.display_name
+         order by u.last_active_at desc nulls last, lower(u.display_name)
          limit 100`,
         [q],
       )
@@ -44,17 +46,20 @@ export default async function AdminUsersPage({ searchParams }: Props) {
         email: string;
         display_name: string;
         created_at: string;
+        last_active_at: string | null;
         totp_enabled: boolean;
         email_2fa_enabled: boolean;
         session_count: number;
       }>(
         `select u.id, u.email, u.display_name,
                 u.created_at::text as created_at,
+                u.last_active_at::text as last_active_at,
                 u.totp_enabled, u.email_2fa_enabled,
                 (select count(*)::int from sessions s
                   where s.user_id = u.id and s.expires_at > now()) as session_count
          from users u
-         order by lower(u.display_name), lower(u.email)
+         order by u.last_active_at desc nulls last,
+                  lower(u.display_name), lower(u.email)
          limit 500`,
       );
 
@@ -98,12 +103,13 @@ export default async function AdminUsersPage({ searchParams }: Props) {
           </div>
         </form>
 
-        <table className="legacy-table" style={{ maxWidth: 980 }}>
+        <table className="legacy-table" style={{ maxWidth: 1100 }}>
           <thead>
             <tr>
               <th>Name</th>
               <th>Email</th>
               <th>Joined</th>
+              <th>Last active</th>
               <th>2FA</th>
               <th>Sessions</th>
               <th></th>
@@ -112,7 +118,7 @@ export default async function AdminUsersPage({ searchParams }: Props) {
           <tbody>
             {users.length === 0 ? (
               <tr>
-                <td colSpan={6}>{q ? "No matches." : "No users."}</td>
+                <td colSpan={7}>{q ? "No matches." : "No users."}</td>
               </tr>
             ) : (
               users.map((u) => (
@@ -120,6 +126,9 @@ export default async function AdminUsersPage({ searchParams }: Props) {
                   <td>{u.display_name}</td>
                   <td>{u.email}</td>
                   <td>{formatMdY(u.created_at)}</td>
+                  <td className={activityClass(u.last_active_at)}>
+                    {formatMdYTime(u.last_active_at)}
+                  </td>
                   <td>
                     {[
                       u.totp_enabled ? "authenticator" : null,

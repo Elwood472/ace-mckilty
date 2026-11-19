@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { touchLastActive } from "@/lib/activity";
 import { assertCsrf } from "@/lib/csrf";
 import { sql } from "@/lib/db";
 import { requireUser } from "@/lib/session";
@@ -59,6 +60,7 @@ export async function updateAppearance(
        where id = $4`,
       [accentNorm ?? "", pageNorm ?? "", linkNorm ?? "", user.id],
     );
+    await touchLastActive(user.id);
 
     revalidatePath("/", "layout");
     revalidatePath("/profile/appearance");
