@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import type { CSSProperties } from "react";
 import { SiteHeader } from "@/components/site-header";
 import { ensureCsrfToken } from "@/lib/csrf";
 import { sql } from "@/lib/db";
@@ -9,6 +10,7 @@ import { isProvisionedAdmin } from "@/lib/admin";
 import { getPersonalListId } from "@/lib/lists";
 import { formatMdY } from "@/lib/dates";
 import { QUESTIONNAIRE_COLUMNS } from "@/lib/profile-fields";
+import { resolveTheme, themeToCssVars } from "@/lib/theme";
 import { ProfileView, type ProfileViewData } from "./profile-view";
 
 type Props = { params: Promise<{ userId: string }> };
@@ -60,19 +62,36 @@ export default async function ProfilePage({ params }: Props) {
   }
 
   const qCols = QUESTIONNAIRE_COLUMNS.join(", ");
-  const rows = await sql<ProfileViewData & { id: string }>(
+  const rows = await sql<
+    ProfileViewData & {
+      id: string;
+      theme_accent: string;
+      theme_page: string;
+      theme_link: string;
+    }
+  >(
     `select id, display_name, email, birthday::text as birthday,
             profile_modified_at::text as profile_modified_at,
             picture_url, caption, height, shoe_size, pants_size, shirt_size,
+            theme_accent, theme_page, theme_link,
             ${qCols}
      from users where id = $1`,
     [userId],
   );
   if (!rows.length) notFound();
   const p = rows[0];
+  // Show this person's Colors choices while viewing their profile (not yours).
+  const ownerThemeStyle = {
+    ...themeToCssVars(resolveTheme(p)),
+    minHeight: "100vh",
+    background: "var(--page)",
+    display: "flex",
+    flexDirection: "column",
+    flex: 1,
+  } as CSSProperties;
 
   return (
-    <>
+    <div style={ownerThemeStyle}>
       <SiteHeader user={me} />
       <main className="site-main">
         <p>
@@ -102,6 +121,6 @@ export default async function ProfilePage({ params }: Props) {
           }
         />
       </main>
-    </>
+    </div>
   );
 }
