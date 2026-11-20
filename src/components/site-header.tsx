@@ -2,6 +2,7 @@ import Link from "next/link";
 import type { User } from "@/lib/types";
 import { signOut } from "@/app/actions/auth";
 import { CsrfField } from "@/components/csrf-field";
+import { QuietWaves } from "@/components/quiet-waves";
 import { ensureCsrfToken } from "@/lib/csrf";
 
 /**
@@ -20,7 +21,9 @@ export async function SiteHeader({
   const csrf = user ? await ensureCsrfToken() : "";
 
   return (
-    <header className="site-header">
+    <>
+      <QuietWaves />
+      <header className="site-header">
       <table cellPadding={0} cellSpacing={0} width="100%">
         <tbody>
           <tr>
@@ -111,6 +114,7 @@ export async function SiteHeader({
           </tr>
         </tbody>
       </table>
-    </header>
+      </header>
+    </>
   );
 }

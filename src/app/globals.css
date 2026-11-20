@@ -234,13 +234,45 @@ a.btn:hover {
 .site-header {
   border-bottom: 1px solid var(--border-soft);
   padding: 8px 12px;
-  background: #fff;
+  background: color-mix(in srgb, var(--page) 92%, #fff);
+  position: relative;
+  z-index: 2;
 }
 
 .site-main {
   padding: 12px 16px 40px;
   position: relative;
   z-index: 1;
+}
+
+/* Quiet Waves — accent-tinted ribbons; follows user Colors via --navy / --page */
+.quiet-waves {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  overflow: hidden;
+  color: var(--navy);
+  background: var(--page);
+}
+
+.quiet-waves-top,
+.quiet-waves-bottom {
+  position: absolute;
+  left: 0;
+  width: 100%;
+  height: min(160px, 22vh);
+}
+
+.quiet-waves-top {
+  top: 0;
+  opacity: 0.09;
+}
+
+.quiet-waves-bottom {
+  bottom: 0;
+  opacity: 0.07;
+  transform: scaleY(-1);
 }
 
 .faq-page {
