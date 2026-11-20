@@ -511,7 +511,7 @@ export function AddItemForm({
     setAutofillPending(true);
     setAutofillMsg(undefined);
     try {
-      const result = await autofillItemFromUrl(url);
+      const result = await autofillItemFromUrl(url, csrf);
       if (result.title) setTitle(result.title);
       if (result.price) setPrice(result.price);
       if (result.source) setSource(result.source);
@@ -789,7 +789,7 @@ export function EditItemForm({
     setAutofillPending(true);
     setAutofillMsg(undefined);
     try {
-      const result = await autofillItemFromUrl(url);
+      const result = await autofillItemFromUrl(url, csrf);
       if (result.title) setTitle(result.title);
       if (result.price) setPrice(result.price);
       if (result.source) setSource(result.source);

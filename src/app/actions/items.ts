@@ -28,7 +28,13 @@ export type ActionState = { error?: string; ok?: string };
 
 export async function autofillItemFromUrl(
   url: string,
+  csrf?: string,
 ): Promise<AutofillResult> {
+  try {
+    await assertCsrf(csrf ?? null);
+  } catch {
+    return { warning: "Invalid request. Refresh and try again." };
+  }
   const user = await requireUser();
   const ip = await getClientIp();
   // Per-user + per-IP only — no shared global that one account can burn for everyone.
