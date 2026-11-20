@@ -82,7 +82,8 @@ export async function SiteHeader({
               className="site-header-banner"
               aria-hidden="true"
               style={{
-                width: "min(100%, 200px)",
+                marginLeft: "9.5rem",
+                width: 160,
                 height: 72,
                 maxHeight: 72,
                 overflow: "hidden",
@@ -97,7 +98,7 @@ export async function SiteHeader({
               <img
                 src={banner.src}
                 alt=""
-                width={200}
+                width={160}
                 height={72}
                 style={{
                   display: "block",

@@ -242,7 +242,8 @@ a.btn:hover {
 
 .site-header-row {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
+  /* Left keeps natural width so brand + banner stay one row */
+  grid-template-columns: max-content minmax(0, 1fr);
   align-items: end;
   gap: 12px 16px;
   min-height: 52px;
@@ -250,9 +251,12 @@ a.btn:hover {
 
 .site-header-left {
   display: flex;
+  flex-direction: row;
+  flex-wrap: nowrap;
   align-items: flex-end;
-  gap: 10px;
-  min-width: 0;
+  gap: 0;
+  /* Gap ≈ brand block width (AM + Ace McKilty / Gift Registry) */
+  column-gap: 0;
 }
 
 .site-header-brand {
@@ -260,12 +264,13 @@ a.btn:hover {
   align-items: center;
   gap: 10px;
   padding-bottom: 8px;
-  min-width: 0;
   flex-shrink: 0;
 }
 
 .site-header-banner {
-  width: min(100%, 200px);
+  /* Offset ≈ brand name width so art sits to the right of the title */
+  margin-left: 9.5rem;
+  width: 160px;
   height: 72px;
   max-height: 72px;
   overflow: hidden;
@@ -296,6 +301,7 @@ a.btn:hover {
   font-size: 12px;
   text-align: right;
   white-space: nowrap;
+  min-width: 0;
 }
 
 @media (max-width: 720px) {
@@ -304,7 +310,8 @@ a.btn:hover {
     align-items: end;
   }
   .site-header-banner {
-    width: min(100%, 140px);
+    margin-left: 5.5rem;
+    width: 120px;
     height: 56px;
     max-height: 56px;
   }
@@ -324,7 +331,7 @@ a.btn:hover {
   z-index: 1;
 }
 
-/* Quiet Waves atmosphere v1d — accent-tinted ribbons; follows user Colors via --navy / --page */
+/* Quiet Waves atmosphere v1e — accent-tinted ribbons; follows user Colors via --navy / --page */
 .quiet-waves {
   position: fixed;
   inset: 0;

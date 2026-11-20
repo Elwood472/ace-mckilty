@@ -23,6 +23,7 @@ export type HeaderBanner = {
 export const HEADER_BANNERS_DEFAULT: HeaderBanner[] = [
   { src: "/header/ace-lean.png" },
   { src: "/header/ace-point.png" },
+  { src: "/header/ace-arms.png" },
 ];
 
 /**
