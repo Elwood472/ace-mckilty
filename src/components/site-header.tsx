@@ -4,16 +4,15 @@ import { signOut } from "@/app/actions/auth";
 import { CsrfField } from "@/components/csrf-field";
 import { QuietWaves } from "@/components/quiet-waves";
 import { ensureCsrfToken } from "@/lib/csrf";
+import { pickHeaderBanner } from "@/lib/header-banner";
 
 /**
  * Gift Registry chrome under Ace McKilty.
  * Brand mark links to the public hub (`/`); Gift Registry home is `/gifts` or `/dashboard`.
  *
- * Header art: transparent cutout sits on the header/page border.
- * More files under /header/ can later rotate per login.
+ * Header art: small transparent cutout on the header/page border.
+ * Random from the default pool; holiday sets override when they have images.
  */
-const HEADER_BANNER_SRC = "/header/ace-lean.png";
-
 export async function SiteHeader({
   user,
   app = "gifts",
@@ -24,6 +23,7 @@ export async function SiteHeader({
 }) {
   const giftsHome = user ? "/dashboard" : "/gifts";
   const csrf = user ? await ensureCsrfToken() : "";
+  const banner = pickHeaderBanner();
 
   return (
     <>
@@ -77,8 +77,37 @@ export async function SiteHeader({
             </div>
           </div>
 
-          <div className="site-header-banner" aria-hidden="true">
-            <img src={HEADER_BANNER_SRC} alt="" />
+          <div
+            className="site-header-banner"
+            aria-hidden="true"
+            style={{
+              justifySelf: "center",
+              width: "min(100%, 280px)",
+              height: 72,
+              maxHeight: 72,
+              overflow: "hidden",
+              display: "flex",
+              alignItems: "flex-end",
+              justifyContent: "center",
+              pointerEvents: "none",
+            }}
+          >
+            {/* Hard size caps — must not depend on CSS bundle alone */}
+            <img
+              src={banner.src}
+              alt=""
+              width={280}
+              height={72}
+              style={{
+                display: "block",
+                maxWidth: "100%",
+                maxHeight: 72,
+                width: "auto",
+                height: "auto",
+                objectFit: "contain",
+                objectPosition: "center bottom",
+              }}
+            />
           </div>
 
           <div className="site-header-nav">
