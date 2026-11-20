@@ -6,7 +6,9 @@ import { assertHuman } from "@/lib/captcha";
 import { getClientIp } from "@/lib/client-ip";
 import { assertCsrf } from "@/lib/csrf";
 import {
+  clearResetTokenCookie,
   consumeResetTokenAndSetPassword,
+  readResetTokenCookie,
   requestPasswordReset,
 } from "@/lib/password-reset";
 import { checkRateLimit } from "@/lib/rate-limit";
@@ -102,7 +104,7 @@ export async function completePasswordResetAction(
       return { error: "Too many attempts. Try again later." };
     }
 
-    const token = formString(formData, "token");
+    const token = await readResetTokenCookie();
     const password = formString(formData, "password");
     const confirm = formString(formData, "confirm");
     if (password !== confirm) {
@@ -111,6 +113,7 @@ export async function completePasswordResetAction(
 
     const result = await consumeResetTokenAndSetPassword(token, password);
     if (!result.ok) return { error: result.error };
+    await clearResetTokenCookie();
     done = true;
   } catch (e) {
     console.error("[auth] password reset complete failed", e);

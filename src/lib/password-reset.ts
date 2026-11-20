@@ -1,6 +1,7 @@
 import "server-only";
 
 import { createHash, randomBytes, timingSafeEqual } from "crypto";
+import { cookies } from "next/headers";
 import { nanoid } from "nanoid";
 import { absoluteAppUrl } from "@/lib/app-url";
 import { sql } from "@/lib/db";
@@ -8,6 +9,9 @@ import { sendEmail } from "@/lib/email";
 import { hashPassword } from "@/lib/password";
 
 const RESET_TTL_MIN = 60;
+
+/** httpOnly cookie holding the raw reset token after the email link is opened. */
+export const RESET_TOKEN_COOKIE = "gr_pw_reset";
 
 export function hashResetToken(raw: string): string {
   return createHash("sha256").update(raw, "utf8").digest("hex");
@@ -85,6 +89,8 @@ export async function requestPasswordReset(email: string): Promise<{
     [id, user.id, tokenHash, expiresAt],
   );
 
+  // Email still uses ?token= once; middleware moves it into an httpOnly cookie
+  // and redirects to a clean /login/reset URL before the form is shown.
   const resetUrl = absoluteAppUrl(`/login/reset?token=${encodeURIComponent(raw)}`);
   const mail = passwordResetEmailBody(resetUrl);
   const sent = await sendEmail({
@@ -98,6 +104,23 @@ export async function requestPasswordReset(email: string): Promise<{
     return { stubResetUrl: resetUrl };
   }
   return {};
+}
+
+export async function readResetTokenCookie(): Promise<string> {
+  const jar = await cookies();
+  const raw = jar.get(RESET_TOKEN_COOKIE)?.value;
+  return typeof raw === "string" ? raw.trim() : "";
+}
+
+export async function clearResetTokenCookie(): Promise<void> {
+  const jar = await cookies();
+  jar.set(RESET_TOKEN_COOKIE, "", {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === "production",
+    sameSite: "lax",
+    path: "/login/reset",
+    maxAge: 0,
+  });
 }
 
 /**

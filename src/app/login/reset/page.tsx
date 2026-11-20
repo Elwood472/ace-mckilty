@@ -8,21 +8,19 @@ import {
   turnstileKeysReady,
 } from "@/lib/captcha";
 import { ensureCsrfToken } from "@/lib/csrf";
-import { findValidResetToken } from "@/lib/password-reset";
+import { readResetTokenCookie } from "@/lib/password-reset";
 import { getCurrentUser } from "@/lib/session";
 import { ResetPasswordForm } from "./form";
 
-export default async function ResetPasswordPage({
-  searchParams,
-}: {
-  searchParams: Promise<{ token?: string }>;
-}) {
+export default async function ResetPasswordPage() {
   const user = await getCurrentUser();
   if (user) redirect("/dashboard");
 
-  const sp = await searchParams;
-  const token = typeof sp.token === "string" ? sp.token.trim() : "";
-  const valid = token ? await findValidResetToken(token) : null;
+  // Token lives only in the httpOnly cookie after middleware redeem.
+  // Do not pre-check validity here — that would tip off whether a token
+  // is still good before submit.
+  const token = await readResetTokenCookie();
+  const hasToken = token.length >= 20 && token.length <= 200;
   const csrf = await ensureCsrfToken();
   const turnstileSiteKey = turnstileKeysReady()
     ? getTurnstileSiteKey()
@@ -39,10 +37,9 @@ export default async function ResetPasswordPage({
         <p className="brand-title" style={{ fontSize: 22, marginBottom: 12 }}>
           Choose a new password
         </p>
-        {valid ? (
+        {hasToken ? (
           <ResetPasswordForm
             csrf={csrf}
-            token={token}
             turnstileSiteKey={turnstileSiteKey}
             mathChallenge={mathChallenge}
           />

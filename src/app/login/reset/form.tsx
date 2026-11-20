@@ -35,12 +35,10 @@ async function solvePow(salt: string, difficulty: number): Promise<string> {
 
 export function ResetPasswordForm({
   csrf,
-  token,
   turnstileSiteKey,
   mathChallenge,
 }: {
   csrf: string;
-  token: string;
   turnstileSiteKey: string | null;
   mathChallenge: MathChallenge | null;
 }) {
@@ -99,7 +97,6 @@ export function ResetPasswordForm({
       style={{ padding: 16, maxWidth: 360, width: "100%" }}
     >
       <CsrfField token={csrf} />
-      <input type="hidden" name="token" value={token} />
       <input type="hidden" name="form_issued_at" value={issuedAt} />
       <div
         aria-hidden="true"

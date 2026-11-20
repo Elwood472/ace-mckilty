@@ -11,7 +11,7 @@ import type { User } from "@/lib/types";
  * Bind ADMIN_EMAILS as an app secret for the published host.
  *
  * Email allowlist alone is not enough: the user row must also have
- * is_operator=true (one-shot grant for existing accounts, or CLI provision).
+ * is_operator=true (one-shot grant for existing accounts via operator bootstrap).
  * Open signup rejects ADMIN_EMAILS so those addresses cannot be squatted.
  */
 export function adminEmailAllowlist(): string[] {

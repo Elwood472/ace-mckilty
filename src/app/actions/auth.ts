@@ -85,7 +85,7 @@ export async function signUp(
     }
 
     // Operator emails cannot be self-registered (prevents allowlist squatting).
-    // Provision via import / scripts/provision-admin.mjs instead.
+    // Promote operators via ADMIN_EMAILS one-shot bootstrap / import instead.
     if (isAdminEmail(email)) {
       await hashPassword(password);
       return {
