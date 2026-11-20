@@ -32,6 +32,9 @@ export default async function SignupPage() {
         <p className="brand-title" style={{ fontSize: 22, marginBottom: 12 }}>
           Create your account
         </p>
+        <p style={{ maxWidth: 360, marginBottom: 12, fontSize: 13, color: "#555" }}>
+          We&apos;ll email a confirmation link before you can sign in.
+        </p>
         <AuthForm
           mode="signup"
           csrf={csrf}

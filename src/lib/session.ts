@@ -66,15 +66,24 @@ export async function getCurrentUser(): Promise<User | null> {
   const jar = await cookies();
   const token = jar.get(SESSION_COOKIE)?.value;
   if (!token) return null;
-  const rows = await sql<User>(
+  const rows = await sql<User & { email_verified_at: string | null }>(
     `select u.id, u.email, u.display_name, u.created_at::text as created_at,
-            coalesce(u.is_operator, false) as is_operator
+            coalesce(u.is_operator, false) as is_operator,
+            u.email_verified_at::text as email_verified_at
      from sessions s
      join users u on u.id = s.user_id
      where s.id = $1 and s.expires_at > now()`,
     [token],
   );
-  return rows[0] ?? null;
+  const user = rows[0];
+  if (!user) return null;
+  // Unverified accounts must not keep a session (signup requires email proof).
+  if (!user.email_verified_at) {
+    await destroySession();
+    return null;
+  }
+  const { email_verified_at: _v, ...safe } = user;
+  return safe;
 }
 
 /**

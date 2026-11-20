@@ -13,6 +13,11 @@ import { assertHuman } from "@/lib/captcha";
 import { SIGNIN_FAIL_WINDOW, signInFailKey } from "@/lib/login-captcha";
 import { DISPLAY_NAME_MAX, sanitizePublicLabel } from "@/lib/text";
 import { isAdminEmail } from "@/lib/admin";
+import {
+  issueEmailVerification,
+  setPendingSignupEmail,
+  setStubVerifyUrl,
+} from "@/lib/email-verify";
 
 const credentials = z.object({
   email: z.string().email().max(320),
@@ -25,7 +30,7 @@ function formString(fd: FormData, key: string): string {
   return typeof v === "string" ? v.trim() : "";
 }
 
-export type AuthState = { error?: string };
+export type AuthState = { error?: string; ok?: string };
 
 export async function signUp(
   _prev: AuthState,
@@ -42,7 +47,6 @@ export async function signUp(
     const ip = await getClientIp();
     const human = await assertHuman(formData, ip);
     if (!human.ok) return { error: human.error };
-
     const email = formString(formData, "email").toLowerCase();
     const password = formString(formData, "password");
     const displayName = sanitizePublicLabel(
@@ -110,16 +114,32 @@ export async function signUp(
        values ($1, $2, $3, false) returning id`,
       [email, passwordHash, displayName],
     );
-    const { ensurePersonalList } = await import("@/lib/lists");
-    await ensurePersonalList(rows[0].id, displayName);
-    await createSession(rows[0].id);
     userId = rows[0].id;
+
+    const mailed = await issueEmailVerification(userId, email);
+    if (!mailed.ok) {
+      // Hosted without working mail: do not leave an unverified squat account.
+      await sql(`delete from users where id = $1`, [userId]);
+      userId = null;
+      return {
+        error:
+          mailed.error ||
+          "Could not send confirmation email. Try again later.",
+      };
+    }
+
+    const { ensurePersonalList } = await import("@/lib/lists");
+    await ensurePersonalList(userId, displayName);
+    await setPendingSignupEmail(email);
+    if (mailed.stubVerifyUrl) {
+      await setStubVerifyUrl(mailed.stubVerifyUrl);
+    }
   } catch (e) {
     console.error("[auth] signUp failed", e);
     return { error: "Could not create account. Try again in a moment." };
   }
 
-  if (userId) redirect("/profile/security?setup=1");
+  if (userId) redirect("/signup/check-email");
   return { error: "Could not create account. Try again in a moment." };
 }
 
@@ -170,14 +190,29 @@ export async function signIn(
       return { error: "Too many attempts. Try again later." };
     }
 
-    const rows = await sql<{ id: string; password_hash: string }>(
-      "select id, password_hash from users where email = $1",
+    const rows = await sql<{
+      id: string;
+      password_hash: string;
+      email_verified_at: string | null;
+    }>(
+      `select id, password_hash,
+              email_verified_at::text as email_verified_at
+       from users where email = $1`,
       [email],
     );
     const user = rows[0];
     if (!user || !(await verifyPassword(password, user.password_hash))) {
       await bumpCounter(failKey, SIGNIN_FAIL_WINDOW);
       return { error: "Email or password is incorrect." };
+    }
+
+    if (!user.email_verified_at) {
+      await setPendingSignupEmail(email);
+      const mailed = await issueEmailVerification(user.id, email);
+      if (mailed.stubVerifyUrl) {
+        await setStubVerifyUrl(mailed.stubVerifyUrl);
+      }
+      redirect("/signup/check-email");
     }
 
     await clearRateLimit(failKey);
@@ -213,6 +248,15 @@ export async function signIn(
       needsTwoFactorSetup = true;
     }
   } catch (e) {
+    if (
+      e &&
+      typeof e === "object" &&
+      "digest" in e &&
+      typeof (e as { digest?: string }).digest === "string" &&
+      (e as { digest: string }).digest.startsWith("NEXT_REDIRECT")
+    ) {
+      throw e;
+    }
     console.error("[auth] signIn failed", e);
     return { error: "Could not sign in. Try again in a moment." };
   }
@@ -221,6 +265,75 @@ export async function signIn(
   if (needsTwoFactorSetup) redirect("/profile/security?setup=1");
   if (ok) redirect(nextPath);
   return { error: "Could not sign in. Try again in a moment." };
+}
+
+/** Resend signup confirmation — same generic copy whether or not the address exists. */
+export async function resendSignupVerificationAction(
+  _prev: AuthState,
+  formData: FormData,
+): Promise<AuthState> {
+  try {
+    await assertCsrf(formData.get("csrf"));
+  } catch {
+    return { error: "Invalid request. Refresh and try again." };
+  }
+
+  try {
+    const ip = await getClientIp();
+    if (
+      !(await checkRateLimit(`verify-resend-ip:${ip}`, {
+        maxHits: 5,
+        windowMs: 60 * 60 * 1000,
+      }))
+    ) {
+      return { error: "Too many attempts. Try again later." };
+    }
+
+    const email = formString(formData, "email").toLowerCase();
+    const parsed = z.string().email().max(320).safeParse(email);
+    if (!parsed.success) {
+      return { error: "Enter a valid email." };
+    }
+
+    if (
+      !(await checkRateLimit(`verify-resend-email:${email}`, {
+        maxHits: 3,
+        windowMs: 60 * 60 * 1000,
+      }))
+    ) {
+      return {
+        ok: "If that address still needs confirming, we sent another link.",
+      };
+    }
+
+    const rows = await sql<{ id: string; email_verified_at: string | null }>(
+      `select id, email_verified_at::text as email_verified_at
+       from users where email = $1`,
+      [email],
+    );
+    const user = rows[0];
+    if (user && !user.email_verified_at) {
+      const mailed = await issueEmailVerification(user.id, email);
+      if (mailed.stubVerifyUrl) {
+        await setStubVerifyUrl(mailed.stubVerifyUrl);
+      }
+      await setPendingSignupEmail(email);
+      if (!mailed.ok) {
+        return {
+          error:
+            mailed.error ||
+            "Could not send confirmation email. Try again later.",
+        };
+      }
+    }
+
+    return {
+      ok: "If that address still needs confirming, we sent another link.",
+    };
+  } catch (e) {
+    console.error("[auth] resend verification failed", e);
+    return { error: "Could not send email. Try again in a moment." };
+  }
 }
 
 export async function signOut(formData?: FormData): Promise<void> {

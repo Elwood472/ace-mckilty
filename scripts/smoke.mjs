@@ -23,8 +23,8 @@ async function q(text, params = []) {
 async function mkUser(email, name) {
   const hash = await bcrypt.hash("password123", 4);
   const rows = await q(
-    `insert into users (email, password_hash, display_name)
-     values ($1, $2, $3) returning id`,
+    `insert into users (email, password_hash, display_name, email_verified_at)
+     values ($1, $2, $3, now()) returning id`,
     [email, hash, name],
   );
   return rows[0].id;
