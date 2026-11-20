@@ -233,10 +233,74 @@ a.btn:hover {
 
 .site-header {
   border-bottom: 1px solid var(--border-soft);
-  padding: 8px 12px;
+  padding: 8px 12px 0;
   background: color-mix(in srgb, var(--page) 92%, #fff);
   position: relative;
   z-index: 2;
+  overflow: visible;
+}
+
+.site-header-row {
+  display: grid;
+  grid-template-columns: auto minmax(140px, 1fr) auto;
+  align-items: end;
+  gap: 12px 16px;
+  min-height: 52px;
+}
+
+.site-header-brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding-bottom: 8px;
+  min-width: 0;
+}
+
+.site-header-banner {
+  justify-self: center;
+  width: min(100%, 420px);
+  height: 76px;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  position: relative;
+  z-index: 3;
+  pointer-events: none;
+}
+
+.site-header-banner img {
+  display: block;
+  max-width: 100%;
+  max-height: 84px;
+  width: auto;
+  height: auto;
+  object-fit: contain;
+  /* Forearm sits on the header / page rule from above */
+  margin-bottom: 0;
+  filter: drop-shadow(0 1px 0 rgba(0, 0, 0, 0.05));
+}
+
+.site-header-nav {
+  padding-bottom: 10px;
+  font-size: 12px;
+  text-align: right;
+  white-space: nowrap;
+}
+
+@media (max-width: 720px) {
+  .site-header-row {
+    grid-template-columns: 1fr auto;
+  }
+  .site-header-banner {
+    grid-column: 1 / -1;
+    width: 100%;
+    max-width: none;
+    height: 64px;
+    order: 3;
+  }
+  .site-header-banner img {
+    max-height: 68px;
+  }
 }
 
 .site-main {
@@ -245,7 +309,7 @@ a.btn:hover {
   z-index: 1;
 }
 
-/* Quiet Waves atmosphere v1 — accent-tinted ribbons; follows user Colors via --navy / --page */
+/* Quiet Waves atmosphere v1b — accent-tinted ribbons; follows user Colors via --navy / --page */
 .quiet-waves {
   position: fixed;
   inset: 0;

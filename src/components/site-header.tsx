@@ -8,7 +8,12 @@ import { ensureCsrfToken } from "@/lib/csrf";
 /**
  * Gift Registry chrome under Ace McKilty.
  * Brand mark links to the public hub (`/`); Gift Registry home is `/gifts` or `/dashboard`.
+ *
+ * Header art: transparent cutout sits on the header/page border.
+ * More files under /header/ can later rotate per login.
  */
+const HEADER_BANNER_SRC = "/header/ace-lean.png";
+
 export async function SiteHeader({
   user,
   app = "gifts",
@@ -24,96 +29,95 @@ export async function SiteHeader({
     <>
       <QuietWaves />
       <header className="site-header">
-      <table cellPadding={0} cellSpacing={0} width="100%">
-        <tbody>
-          <tr>
-            <td valign="middle" style={{ width: 48 }}>
+        <div className="site-header-row">
+          <div className="site-header-brand">
+            <Link
+              href="/"
+              aria-label="Ace McKilty home"
+              style={{ textDecoration: "none" }}
+            >
+              <div
+                aria-hidden
+                style={{
+                  width: 40,
+                  height: 40,
+                  background: "var(--navy)",
+                  border: "1px solid #000",
+                  color: "#fff",
+                  fontWeight: 700,
+                  fontSize: 14,
+                  textAlign: "center",
+                  lineHeight: "40px",
+                }}
+              >
+                AM
+              </div>
+            </Link>
+            <div style={{ lineHeight: 1.2 }}>
               <Link
                 href="/"
-                aria-label="Ace McKilty home"
-                style={{ textDecoration: "none" }}
+                className="brand-title"
+                style={{ fontSize: 18, display: "block" }}
               >
-                <div
-                  aria-hidden
+                Ace McKilty
+              </Link>
+              {app === "gifts" ? (
+                <Link
+                  href={giftsHome}
                   style={{
-                    width: 40,
-                    height: 40,
-                    background: "var(--navy)",
-                    border: "1px solid #000",
-                    color: "#fff",
+                    fontSize: 13,
                     fontWeight: 700,
-                    fontSize: 14,
-                    textAlign: "center",
-                    lineHeight: "40px",
+                    color: "var(--navy)",
+                    textDecoration: "none",
                   }}
                 >
-                  AM
-                </div>
-              </Link>
-            </td>
-            <td valign="middle">
-              <div style={{ lineHeight: 1.2 }}>
-                <Link
-                  href="/"
-                  className="brand-title"
-                  style={{ fontSize: 18, display: "block" }}
-                >
-                  Ace McKilty
+                  Gift Registry
                 </Link>
-                {app === "gifts" ? (
-                  <Link
-                    href={giftsHome}
-                    style={{
-                      fontSize: 13,
-                      fontWeight: 700,
-                      color: "var(--navy)",
-                      textDecoration: "none",
-                    }}
+              ) : null}
+            </div>
+          </div>
+
+          <div className="site-header-banner" aria-hidden="true">
+            <img src={HEADER_BANNER_SRC} alt="" />
+          </div>
+
+          <div className="site-header-nav">
+            {user ? (
+              <span>
+                <b>{user.display_name}</b>
+                {" · "}
+                <Link href="/">Site</Link>
+                {" · "}
+                <Link href="/dashboard">Home</Link>
+                {" · "}
+                <Link href="/profile/security">Security</Link>
+                {" · "}
+                <Link href="/faq">FAQ</Link>
+                {" · "}
+                <form action={signOut} style={{ display: "inline" }}>
+                  <CsrfField token={csrf} />
+                  <button
+                    type="submit"
+                    className="btn"
+                    style={{ marginLeft: 4 }}
                   >
-                    Gift Registry
-                  </Link>
-                ) : null}
-              </div>
-            </td>
-            <td valign="middle" align="right">
-              {user ? (
-                <span style={{ fontSize: 12 }}>
-                  <b>{user.display_name}</b>
-                  {" · "}
-                  <Link href="/">Site</Link>
-                  {" · "}
-                  <Link href="/dashboard">Home</Link>
-                  {" · "}
-                  <Link href="/profile/security">Security</Link>
-                  {" · "}
-                  <Link href="/faq">FAQ</Link>
-                  {" · "}
-                  <form action={signOut} style={{ display: "inline" }}>
-                    <CsrfField token={csrf} />
-                    <button
-                      type="submit"
-                      className="btn"
-                      style={{ marginLeft: 4 }}
-                    >
-                      Log Out
-                    </button>
-                  </form>
-                </span>
-              ) : (
-                <span style={{ fontSize: 12 }}>
-                  <Link href="/">Site</Link>
-                  {" · "}
-                  <Link href="/faq">FAQ</Link>
-                  {" · "}
-                  <Link href="/login">Sign in</Link>
-                  {" · "}
-                  <Link href="/signup">Create account</Link>
-                </span>
-              )}
-            </td>
-          </tr>
-        </tbody>
-      </table>
+                    Log Out
+                  </button>
+                </form>
+              </span>
+            ) : (
+              <span>
+                <Link href="/">Site</Link>
+                {" · "}
+                <Link href="/faq">FAQ</Link>
+                {" · "}
+                <Link href="/login">Sign in</Link>
+                {" · "}
+                <Link href="/signup">Create account</Link>
+              </span>
+            )}
+          </div>
+        </div>
       </header>
     </>
   );
