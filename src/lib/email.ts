@@ -87,7 +87,7 @@ function escapeHtml(s: string): string {
 }
 
 export function inviteEmailBody(opts: {
-  /** Sanitized owner display name(s), e.g. "Charli Bray". */
+  /** Sanitized owner display name(s), e.g. "Alex". */
   listOwnerLabel: string;
   inviteUrl: string;
 }): { subject: string; text: string; html: string } {
