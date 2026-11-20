@@ -4,7 +4,6 @@ import {
   DeleteAccountForm,
   GrantAccessForms,
   InviteRescueForms,
-  ReassignPurchaseForm,
   RevokeAccessForm,
   UnlockForms,
 } from "@/app/admin/forms";
@@ -165,51 +164,6 @@ export default async function AdminUserDetailPage({ params }: Props) {
      where a.target_user_id = $1
      order by a.created_at desc
      limit 20`,
-    [userId],
-  );
-
-  // Admin-only spoilers: purchase marks this user made, and marks on lists they own.
-  const purchasesTheyMarked = await sql<{
-    purchase_id: string;
-    item_title: string;
-    list_title: string;
-    for_names: string;
-    created_at: string;
-  }>(
-    `select p.id as purchase_id, i.title as item_title, l.title as list_title,
-            string_agg(ou.display_name, ', ' order by ou.display_name) as for_names,
-            p.created_at::text as created_at
-     from purchases p
-     join items i on i.id = p.item_id
-     join wish_lists l on l.id = i.list_id
-     join wish_list_owners o on o.list_id = l.id
-     join users ou on ou.id = o.user_id
-     where p.buyer_user_id = $1 and p.buyer_purged = false
-     group by p.id, i.id, l.id
-     order by p.created_at desc
-     limit 50`,
-    [userId],
-  );
-
-  const purchasesOnTheirLists = await sql<{
-    purchase_id: string;
-    item_title: string;
-    list_title: string;
-    buyer_name: string;
-    buyer_email: string;
-    created_at: string;
-  }>(
-    `select p.id as purchase_id, i.title as item_title, l.title as list_title,
-            b.display_name as buyer_name, b.email as buyer_email,
-            p.created_at::text as created_at
-     from wish_list_owners o
-     join wish_lists l on l.id = o.list_id
-     join items i on i.list_id = l.id
-     join purchases p on p.item_id = i.id and p.buyer_purged = false
-     join users b on b.id = p.buyer_user_id
-     where o.user_id = $1
-     order by p.created_at desc
-     limit 50`,
     [userId],
   );
 
@@ -390,79 +344,6 @@ export default async function AdminUserDetailPage({ params }: Props) {
                       inviteId={i.id}
                       targetUserId={userId}
                       inviteUrl={absoluteAppUrl(`/invite/${i.token}`)}
-                    />
-                  </div>
-                ))
-              )}
-            </div>
-          </div>
-        </div>
-
-        <div style={{ display: "flex", gap: 24, flexWrap: "wrap", marginTop: 16 }}>
-          <div className="panel" style={{ minWidth: 280, flex: "1 1 420px" }}>
-            <div className="panel-head">Purchases they marked (admin only)</div>
-            <div style={{ padding: 10, fontSize: 13 }}>
-              <p style={{ fontSize: 12, color: "#555", marginTop: 0 }}>
-                Reassign moves the secret “bought” mark to another account by
-                email. Normal gift lists still hide buyers from list owners.
-              </p>
-              {purchasesTheyMarked.length === 0 ? (
-                <p style={{ color: "#555", margin: 0 }}>None</p>
-              ) : (
-                purchasesTheyMarked.map((p) => (
-                  <div
-                    key={p.purchase_id}
-                    style={{
-                      borderBottom: "1px solid #ddd",
-                      paddingBottom: 8,
-                      marginBottom: 8,
-                    }}
-                  >
-                    <div>
-                      <b>{p.item_title}</b> for {p.for_names}
-                    </div>
-                    <div style={{ fontSize: 11, color: "#555" }}>
-                      {p.list_title} · {formatMdY(p.created_at)}
-                    </div>
-                    <ReassignPurchaseForm
-                      csrf={csrf}
-                      targetUserId={userId}
-                      purchaseId={p.purchase_id}
-                      itemTitle={p.item_title}
-                    />
-                  </div>
-                ))
-              )}
-            </div>
-          </div>
-
-          <div className="panel" style={{ minWidth: 280, flex: "1 1 420px" }}>
-            <div className="panel-head">Purchases on their lists (admin only)</div>
-            <div style={{ padding: 10, fontSize: 13 }}>
-              {purchasesOnTheirLists.length === 0 ? (
-                <p style={{ color: "#555", margin: 0 }}>None</p>
-              ) : (
-                purchasesOnTheirLists.map((p) => (
-                  <div
-                    key={p.purchase_id}
-                    style={{
-                      borderBottom: "1px solid #ddd",
-                      paddingBottom: 8,
-                      marginBottom: 8,
-                    }}
-                  >
-                    <div>
-                      <b>{p.item_title}</b>
-                    </div>
-                    <div style={{ fontSize: 11, color: "#555" }}>
-                      Buyer {p.buyer_name} ({p.buyer_email}) · {p.list_title} ·{" "}
-                      {formatMdY(p.created_at)}
-                    </div>
-                    <ReassignPurchaseForm
-                      csrf={csrf}
-                      targetUserId={userId}
-                      purchaseId={p.purchase_id}
-                      itemTitle={p.item_title}
                     />
                   </div>
                 ))
