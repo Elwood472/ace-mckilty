@@ -10,6 +10,7 @@ import {
   safeEqualHex,
   verifyTotpCode,
 } from "@/lib/totp";
+import { safeInternalPath } from "@/lib/url-safety";
 
 export const TWO_FACTOR_COOKIE = "gr_2fa";
 const CHALLENGE_TTL_MIN = 10;
@@ -111,10 +112,11 @@ export async function startLoginTwoFactor(opts: {
   const expiresAt = new Date(
     Date.now() + CHALLENGE_TTL_MIN * 60 * 1000,
   ).toISOString();
+  const nextPath = safeInternalPath(opts.nextPath, "/dashboard");
   await sql(
     `insert into auth_challenges (id, user_id, next_path, email_code_hash, email_sent_at, expires_at)
      values ($1, $2, $3, $4, $5::timestamptz, $6::timestamptz)`,
-    [id, opts.userId, opts.nextPath, emailCodeHash, emailSentAt, expiresAt],
+    [id, opts.userId, nextPath, emailCodeHash, emailSentAt, expiresAt],
   );
   await setChallengeCookie(id);
   return stubDevCode ? { stubDevCode } : {};

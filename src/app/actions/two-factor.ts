@@ -16,6 +16,7 @@ import {
   resendLoginEmailCode,
   verifyLoginTwoFactorCode,
 } from "@/lib/two-factor";
+import { safeInternalPath } from "@/lib/url-safety";
 
 function formString(fd: FormData, key: string): string {
   const v = fd.get(key);
@@ -74,7 +75,9 @@ export async function verifyTwoFactorLogin(
       challenge.user_id,
       named[0]?.display_name ?? "My",
     );
-    nextPath = challenge.next_path || "/dashboard";
+    // Re-validate even though login sanitized on write — DB value must not
+    // become an open redirect after 2FA.
+    nextPath = safeInternalPath(challenge.next_path, "/dashboard");
     ok = true;
   } catch (e) {
     console.error("[2fa] verify login failed", e);
