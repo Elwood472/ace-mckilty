@@ -245,7 +245,7 @@ a.btn:hover {
   z-index: 1;
 }
 
-/* Quiet Waves — accent-tinted ribbons; follows user Colors via --navy / --page */
+/* Quiet Waves atmosphere v1 — accent-tinted ribbons; follows user Colors via --navy / --page */
 .quiet-waves {
   position: fixed;
   inset: 0;
