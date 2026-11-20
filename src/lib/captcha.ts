@@ -290,19 +290,22 @@ export async function assertHuman(
   const issuedRaw = formData.get("form_issued_at");
   const issued =
     typeof issuedRaw === "string" ? Number(issuedRaw) : Number.NaN;
-  if (!Number.isFinite(issued) || Date.now() - issued < MIN_DWELL_MS) {
-    return { ok: false, error: "Please wait a moment and try again." };
-  }
   if (Date.now() - issued > 60 * 60 * 1000) {
     return { ok: false, error: "Form expired. Refresh and try again." };
   }
 
+  // Turnstile already proves a real browser; skip the artificial dwell delay
+  // that was causing “wait and try again” when people clicked after the check.
   if (turnstileKeysReady()) {
     const token =
       typeof formData.get("cf-turnstile-response") === "string"
         ? String(formData.get("cf-turnstile-response")).trim()
         : "";
     return verifyTurnstile(token, ip);
+  }
+
+  if (!Number.isFinite(issued) || Date.now() - issued < MIN_DWELL_MS) {
+    return { ok: false, error: "Please wait a moment and try again." };
   }
 
   // Hosted / production: never fall back to client-solvable math CAPTCHA,

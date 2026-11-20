@@ -51,6 +51,23 @@ export function ResetPasswordForm({
   const issuedAt = useMemo(() => String(Date.now()), []);
   const [powNonce, setPowNonce] = useState("");
   const [powReady, setPowReady] = useState(!mathChallenge);
+  const [turnstileReady, setTurnstileReady] = useState(!turnstileSiteKey);
+  const [turnstileReset, setTurnstileReset] = useState(0);
+
+  useEffect(() => {
+    if (!turnstileSiteKey) {
+      setTurnstileReady(true);
+      return;
+    }
+    setTurnstileReady(false);
+  }, [turnstileSiteKey]);
+
+  useEffect(() => {
+    if (!pending && state.error && turnstileSiteKey) {
+      setTurnstileReady(false);
+      setTurnstileReset((n) => n + 1);
+    }
+  }, [pending, state.error, turnstileSiteKey]);
 
   useEffect(() => {
     if (!mathChallenge) {
@@ -136,7 +153,11 @@ export function ResetPasswordForm({
         />
       </div>
       {turnstileSiteKey ? (
-        <TurnstileField siteKey={turnstileSiteKey} />
+        <TurnstileField
+          siteKey={turnstileSiteKey}
+          onReadyChange={setTurnstileReady}
+          resetSignal={turnstileReset}
+        />
       ) : mathChallenge ? (
         <>
           <input type="hidden" name="captcha_token" value={mathChallenge.token} />
@@ -166,10 +187,17 @@ export function ResetPasswordForm({
         type="submit"
         className="btn btn-primary"
         disabled={
-          pending || (!turnstileSiteKey && !mathChallenge) || !powReady
+          pending ||
+          (!turnstileSiteKey && !mathChallenge) ||
+          !powReady ||
+          (!!turnstileSiteKey && !turnstileReady)
         }
       >
-        {pending ? "Saving…" : "Save new password"}
+        {pending
+          ? "Saving…"
+          : turnstileSiteKey && !turnstileReady
+            ? "Waiting for Cloudflare…"
+            : "Save new password"}
       </button>
       <p style={{ marginTop: 12, fontSize: 12 }}>
         <Link href="/login">← Back to login</Link>

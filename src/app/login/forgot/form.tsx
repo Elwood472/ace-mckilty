@@ -49,6 +49,23 @@ export function ForgotPasswordForm({
   const issuedAt = useMemo(() => String(Date.now()), []);
   const [powNonce, setPowNonce] = useState("");
   const [powReady, setPowReady] = useState(!mathChallenge);
+  const [turnstileReady, setTurnstileReady] = useState(!turnstileSiteKey);
+  const [turnstileReset, setTurnstileReset] = useState(0);
+
+  useEffect(() => {
+    if (!turnstileSiteKey) {
+      setTurnstileReady(true);
+      return;
+    }
+    setTurnstileReady(false);
+  }, [turnstileSiteKey]);
+
+  useEffect(() => {
+    if (!pending && (state.error || state.ok) && turnstileSiteKey) {
+      setTurnstileReady(false);
+      setTurnstileReset((n) => n + 1);
+    }
+  }, [pending, state.error, state.ok, turnstileSiteKey]);
 
   useEffect(() => {
     if (!mathChallenge) {
@@ -116,7 +133,11 @@ export function ForgotPasswordForm({
         />
       </div>
       {turnstileSiteKey ? (
-        <TurnstileField siteKey={turnstileSiteKey} />
+        <TurnstileField
+          siteKey={turnstileSiteKey}
+          onReadyChange={setTurnstileReady}
+          resetSignal={turnstileReset}
+        />
       ) : mathChallenge ? (
         <div style={{ marginBottom: 12 }}>
           <input type="hidden" name="captcha_token" value={mathChallenge.token} />
@@ -166,10 +187,15 @@ export function ForgotPasswordForm({
         disabled={
           pending ||
           (!turnstileSiteKey && !mathChallenge) ||
-          (!!mathChallenge && !powReady)
+          (!!mathChallenge && !powReady) ||
+          (!!turnstileSiteKey && !turnstileReady)
         }
       >
-        {pending ? "Sending…" : "Send reset link"}
+        {pending
+          ? "Sending…"
+          : turnstileSiteKey && !turnstileReady
+            ? "Waiting for Cloudflare…"
+            : "Send reset link"}
       </button>
       <p style={{ marginTop: 12, fontSize: 12 }}>
         <Link href="/login">← Back to login</Link>

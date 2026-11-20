@@ -53,6 +53,23 @@ export function AuthForm({
   const issuedAt = useMemo(() => String(Date.now()), []);
   const [powNonce, setPowNonce] = useState("");
   const [powReady, setPowReady] = useState(!mathChallenge);
+  const [turnstileReady, setTurnstileReady] = useState(!turnstileSiteKey);
+  const [turnstileReset, setTurnstileReset] = useState(0);
+
+  useEffect(() => {
+    if (!turnstileSiteKey) {
+      setTurnstileReady(true);
+      return;
+    }
+    setTurnstileReady(false);
+  }, [turnstileSiteKey]);
+
+  useEffect(() => {
+    if (!pending && state.error && turnstileSiteKey) {
+      setTurnstileReady(false);
+      setTurnstileReset((n) => n + 1);
+    }
+  }, [pending, state.error, turnstileSiteKey]);
 
   useEffect(() => {
     if (!mathChallenge) {
@@ -151,7 +168,11 @@ export function AuthForm({
       </div>
 
       {turnstileSiteKey ? (
-        <TurnstileField siteKey={turnstileSiteKey} />
+        <TurnstileField
+          siteKey={turnstileSiteKey}
+          onReadyChange={setTurnstileReady}
+          resetSignal={turnstileReset}
+        />
       ) : mathChallenge ? (
         <div style={{ marginBottom: 12 }}>
           <input type="hidden" name="captcha_token" value={mathChallenge.token} />
@@ -193,14 +214,17 @@ export function AuthForm({
         disabled={
           pending ||
           (!turnstileSiteKey && !mathChallenge) ||
-          (!!mathChallenge && !powReady)
+          (!!mathChallenge && !powReady) ||
+          (!!turnstileSiteKey && !turnstileReady)
         }
       >
         {pending
           ? "Please wait…"
-          : mode === "signup"
-            ? "Create account"
-            : "Log In"}
+          : turnstileSiteKey && !turnstileReady
+            ? "Waiting for Cloudflare…"
+            : mode === "signup"
+              ? "Create account"
+              : "Log In"}
       </button>
       <p style={{ marginTop: 12, fontSize: 12 }}>
         {mode === "signup" ? (
