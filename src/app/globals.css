@@ -234,9 +234,11 @@ a.btn:hover {
 .site-header {
   border-bottom: 1px solid var(--border-soft);
   padding: 8px 12px 0;
-  background: color-mix(in srgb, var(--page) 92%, #fff);
-  position: relative;
-  z-index: 2;
+  /* Opaque enough that scrolling content does not show through */
+  background: color-mix(in srgb, var(--page) 96%, #fff);
+  position: sticky;
+  top: 0;
+  z-index: 40;
   overflow: visible;
 }
 
@@ -331,7 +333,7 @@ a.btn:hover {
   z-index: 1;
 }
 
-/* Quiet Waves atmosphere v1e — accent-tinted ribbons; follows user Colors via --navy / --page */
+/* Quiet Waves atmosphere v1f — accent-tinted ribbons; follows user Colors via --navy / --page */
 .quiet-waves {
   position: fixed;
   inset: 0;
