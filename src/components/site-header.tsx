@@ -30,84 +30,86 @@ export async function SiteHeader({
       <QuietWaves />
       <header className="site-header">
         <div className="site-header-row">
-          <div className="site-header-brand">
-            <Link
-              href="/"
-              aria-label="Ace McKilty home"
-              style={{ textDecoration: "none" }}
-            >
-              <div
-                aria-hidden
-                style={{
-                  width: 40,
-                  height: 40,
-                  background: "var(--navy)",
-                  border: "1px solid #000",
-                  color: "#fff",
-                  fontWeight: 700,
-                  fontSize: 14,
-                  textAlign: "center",
-                  lineHeight: "40px",
-                }}
-              >
-                AM
-              </div>
-            </Link>
-            <div style={{ lineHeight: 1.2 }}>
+          <div className="site-header-left">
+            <div className="site-header-brand">
               <Link
                 href="/"
-                className="brand-title"
-                style={{ fontSize: 18, display: "block" }}
+                aria-label="Ace McKilty home"
+                style={{ textDecoration: "none" }}
               >
-                Ace McKilty
-              </Link>
-              {app === "gifts" ? (
-                <Link
-                  href={giftsHome}
+                <div
+                  aria-hidden
                   style={{
-                    fontSize: 13,
+                    width: 40,
+                    height: 40,
+                    background: "var(--navy)",
+                    border: "1px solid #000",
+                    color: "#fff",
                     fontWeight: 700,
-                    color: "var(--navy)",
-                    textDecoration: "none",
+                    fontSize: 14,
+                    textAlign: "center",
+                    lineHeight: "40px",
                   }}
                 >
-                  Gift Registry
+                  AM
+                </div>
+              </Link>
+              <div style={{ lineHeight: 1.2 }}>
+                <Link
+                  href="/"
+                  className="brand-title"
+                  style={{ fontSize: 18, display: "block" }}
+                >
+                  Ace McKilty
                 </Link>
-              ) : null}
+                {app === "gifts" ? (
+                  <Link
+                    href={giftsHome}
+                    style={{
+                      fontSize: 13,
+                      fontWeight: 700,
+                      color: "var(--navy)",
+                      textDecoration: "none",
+                    }}
+                  >
+                    Gift Registry
+                  </Link>
+                ) : null}
+              </div>
             </div>
-          </div>
 
-          <div
-            className="site-header-banner"
-            aria-hidden="true"
-            style={{
-              justifySelf: "center",
-              width: "min(100%, 280px)",
-              height: 72,
-              maxHeight: 72,
-              overflow: "hidden",
-              display: "flex",
-              alignItems: "flex-end",
-              justifyContent: "center",
-              pointerEvents: "none",
-            }}
-          >
-            {/* Hard size caps — must not depend on CSS bundle alone */}
-            <img
-              src={banner.src}
-              alt=""
-              width={280}
-              height={72}
+            <div
+              className="site-header-banner"
+              aria-hidden="true"
               style={{
-                display: "block",
-                maxWidth: "100%",
+                width: "min(100%, 200px)",
+                height: 72,
                 maxHeight: 72,
-                width: "auto",
-                height: "auto",
-                objectFit: "contain",
-                objectPosition: "center bottom",
+                overflow: "hidden",
+                display: "flex",
+                alignItems: "flex-end",
+                justifyContent: "flex-start",
+                pointerEvents: "none",
+                flexShrink: 0,
               }}
-            />
+            >
+              {/* Hard size caps — must not depend on CSS bundle alone */}
+              <img
+                src={banner.src}
+                alt=""
+                width={200}
+                height={72}
+                style={{
+                  display: "block",
+                  maxWidth: "100%",
+                  maxHeight: 72,
+                  width: "auto",
+                  height: "auto",
+                  objectFit: "contain",
+                  objectPosition: "left bottom",
+                }}
+              />
+            </div>
           </div>
 
           <div className="site-header-nav">
