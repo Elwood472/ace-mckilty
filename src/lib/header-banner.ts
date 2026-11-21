@@ -40,22 +40,63 @@ export const HEADER_BANNERS_HOLIDAY: Record<
   easter: [],
   "july-4": [],
   halloween: [],
-  thanksgiving: [],
+  thanksgiving: [{ src: "/header/ace-thanksgiving.png" }],
   christmas: [],
 };
+
+type EasternYmd = { year: number; month: number; day: number };
+
+function easternYmd(now: Date): EasternYmd {
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone: "America/New_York",
+    year: "numeric",
+    month: "numeric",
+    day: "numeric",
+  }).formatToParts(now);
+  return {
+    year: Number(parts.find((p) => p.type === "year")?.value),
+    month: Number(parts.find((p) => p.type === "month")?.value),
+    day: Number(parts.find((p) => p.type === "day")?.value),
+  };
+}
+
+/** US Thanksgiving = 4th Thursday of November (Eastern calendar year). */
+export function usThanksgivingDay(year: number): number {
+  // Noon UTC on Nov 1 is morning Eastern — stable weekday for the 1st.
+  const nov1 = new Date(Date.UTC(year, 10, 1, 17, 0, 0));
+  const weekday = new Intl.DateTimeFormat("en-US", {
+    timeZone: "America/New_York",
+    weekday: "short",
+  }).format(nov1);
+  const dow: Record<string, number> = {
+    Sun: 0,
+    Mon: 1,
+    Tue: 2,
+    Wed: 3,
+    Thu: 4,
+    Fri: 5,
+    Sat: 6,
+  };
+  const firstThursday = ((4 - (dow[weekday] ?? 0) + 7) % 7) + 1;
+  return firstThursday + 21;
+}
+
+/**
+ * Thanksgiving window: day before, Thanksgiving, and Fri–Sun after
+ * (Wed through Sun of Thanksgiving week).
+ */
+export function isThanksgivingWindow(now = new Date()): boolean {
+  const { year, month, day } = easternYmd(now);
+  if (month !== 11) return false;
+  const turkey = usThanksgivingDay(year);
+  return day >= turkey - 1 && day <= turkey + 3;
+}
 
 /** US-oriented windows (America/New_York calendar day). Expand as needed. */
 export function activeHeaderHoliday(
   now = new Date(),
 ): HeaderHoliday | null {
-  // Interpret in Eastern Time so holiday flips match Rick's day.
-  const parts = new Intl.DateTimeFormat("en-US", {
-    timeZone: "America/New_York",
-    month: "numeric",
-    day: "numeric",
-  }).formatToParts(now);
-  const month = Number(parts.find((p) => p.type === "month")?.value);
-  const day = Number(parts.find((p) => p.type === "day")?.value);
+  const { month, day } = easternYmd(now);
 
   if (month === 12 && day >= 20) return "christmas";
   if (month === 1 && day <= 2) return "new-year";
@@ -64,8 +105,7 @@ export function activeHeaderHoliday(
   // Easter varies — leave empty until dated images arrive
   if (month === 7 && day >= 3 && day <= 5) return "july-4";
   if (month === 10 && day >= 25) return "halloween";
-  // Thanksgiving week (approx late Nov) — refine when images land
-  if (month === 11 && day >= 20 && day <= 28) return "thanksgiving";
+  if (isThanksgivingWindow(now)) return "thanksgiving";
   return null;
 }
 
