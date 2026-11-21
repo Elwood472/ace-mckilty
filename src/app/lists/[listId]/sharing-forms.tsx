@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useEffect, useState } from "react";
 import {
   createListEmailInvite,
   decideAccessRequest,
@@ -20,11 +20,21 @@ export function InviteForm({
   listId: string;
 }) {
   const [state, action, pending] = useActionState(createListEmailInvite, initial);
+  const [flash, setFlash] = useState<{ ok?: string; error?: string }>({});
+  useEffect(() => {
+    if (state.ok) setFlash({ ok: state.ok });
+    else if (state.error) setFlash({ error: state.error });
+  }, [state.ok, state.error]);
+
   return (
-    <form action={action} className="space-y-2">
+    <form
+      action={action}
+      className="space-y-2"
+      onSubmit={() => setFlash({})}
+    >
       <CsrfField token={csrf} />
       <input type="hidden" name="listId" value={listId} />
-      <Flash error={state.error} ok={state.ok} />
+      <Flash error={flash.error} ok={flash.ok} />
       <label className="label" htmlFor="email">
         Email invite
       </label>
@@ -40,8 +50,8 @@ export function InviteForm({
         {pending ? "Sending…" : "Email invite link"}
       </button>
       <p style={{ fontSize: 12, color: "#555", margin: 0 }}>
-        Emails an invite link when <code>RESEND_API_KEY</code> is set; otherwise
-        the invite link is shown here.
+        Sends an email with an invite link. If it doesn&apos;t arrive, check spam
+        — the open invite also appears in the list below.
       </p>
     </form>
   );

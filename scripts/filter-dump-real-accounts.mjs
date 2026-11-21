@@ -13,10 +13,20 @@ const DEFAULT_DIR =
 const DEFAULT_IN = path.join(DEFAULT_DIR, "gift-registry-pglite-dump.json");
 const DEFAULT_OUT = path.join(DEFAULT_DIR, "gift-registry-pglite-dump.json");
 
-const KEEP_EMAILS = new Set([
-  "bluesbrthr@gmail.com", // Rick Bray
-  "cmebray@gmail.com", // Charli Bray
-]);
+// Pass real emails via env — never hardcode personal addresses in the shipped repo.
+// Example: KEEP_EMAILS=person1@example.com,person2@example.com
+const KEEP_EMAILS = new Set(
+  String(process.env.KEEP_EMAILS || "")
+    .split(",")
+    .map((e) => e.trim().toLowerCase())
+    .filter(Boolean),
+);
+if (KEEP_EMAILS.size === 0) {
+  console.error(
+    "Set KEEP_EMAILS to a comma-separated list of accounts to keep (no defaults).",
+  );
+  process.exit(1);
+}
 
 function argValue(flag) {
   const i = process.argv.indexOf(flag);

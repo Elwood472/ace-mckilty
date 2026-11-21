@@ -3,13 +3,13 @@ import { redirect } from "next/navigation";
 import { SiteHeader } from "@/components/site-header";
 import { ensureCsrfToken } from "@/lib/csrf";
 import { sql } from "@/lib/db";
-import { getCurrentUser } from "@/lib/session";
+import { requireAppUser } from "@/lib/session";
 import { formatMdY } from "@/lib/dates";
+import { safeExternalHref } from "@/lib/url-safety";
 import { RemovedActions } from "./removed-actions";
 
 export default async function RemovedPage() {
-  const user = await getCurrentUser();
-  if (!user) redirect("/login");
+  const user = await requireAppUser();
   const csrf = await ensureCsrfToken();
 
   const rows = await sql<{
@@ -44,7 +44,7 @@ export default async function RemovedPage() {
           <Link href="/dashboard">← Home</Link>
         </p>
         <h1 className="brand-title" style={{ fontSize: 20 }}>
-          Gifts I Removed
+          Removed gifts
         </h1>
         <p>
           Put it back restores the gift to your list. PURGE removes it from this
@@ -72,8 +72,12 @@ export default async function RemovedPage() {
                   <td className="group-name">{r.category || "—"}</td>
                   <td>{r.deleted_at ? formatMdY(r.deleted_at) : ""}</td>
                   <td>
-                    {r.url ? (
-                      <a href={r.url} target="_blank" rel="noreferrer">
+                    {safeExternalHref(r.url) ? (
+                      <a
+                        href={safeExternalHref(r.url)!}
+                        target="_blank"
+                        rel="noreferrer"
+                      >
                         {r.title}
                       </a>
                     ) : (

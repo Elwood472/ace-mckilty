@@ -1,5 +1,8 @@
 /**
  * Screenshot Charli's list after gift restore.
+ *
+ * Requires CAPTURE_EMAIL and CAPTURE_PASSWORD in the environment
+ * (never hardcode live credentials in this repo).
  */
 import { chromium } from "playwright-core";
 import { mkdir } from "node:fs/promises";
@@ -12,6 +15,15 @@ const BASE = process.env.BASE_URL || "http://127.0.0.1:3000";
 const CHROME =
   process.env.CHROME_PATH ||
   "/home/ubuntu/.cache/ms-playwright/chromium-1254/chrome-linux64/chrome";
+const email = process.env.CAPTURE_EMAIL?.trim() ?? "";
+const password = process.env.CAPTURE_PASSWORD?.trim() ?? "";
+
+if (!email || !password) {
+  console.error(
+    "Set CAPTURE_EMAIL and CAPTURE_PASSWORD in the environment before running this script.",
+  );
+  process.exit(1);
+}
 
 await mkdir(path.dirname(OUT), { recursive: true });
 
@@ -22,8 +34,8 @@ const browser = await chromium.launch({
 const page = await browser.newPage({ viewport: { width: 1280, height: 1600 } });
 
 await page.goto(`${BASE}/login`, { waitUntil: "networkidle" });
-await page.fill("#email", "cmebray@gmail.com");
-await page.fill("#password", "password123");
+await page.fill("#email", email);
+await page.fill("#password", password);
 await Promise.all([
   page.waitForURL("**/dashboard**", { timeout: 30000 }),
   page.click('button[type="submit"]'),

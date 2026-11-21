@@ -8,6 +8,7 @@ import {
   PROFILE_PIVOT,
   type ProfileField,
 } from "@/lib/profile-fields";
+import { safeProfilePictureSrc } from "@/lib/url-safety";
 
 export type ProfileViewData = {
   display_name: string;
@@ -39,8 +40,8 @@ const toolbarStyle: CSSProperties = {
   position: "sticky",
   top: 0,
   zIndex: 5,
-  background: "#fff",
-  border: "1px solid #000",
+  background: "var(--page)",
+  border: "1px solid var(--border, #000)",
   marginBottom: 12,
   padding: 10,
 };
@@ -57,8 +58,8 @@ function tabStyle(active: boolean): CSSProperties {
     fontSize: 12,
     fontWeight: 700,
     padding: "5px 10px",
-    border: active ? "1px solid #000066" : "1px solid #666",
-    background: active ? "#000080" : "#f0f0f0",
+    border: active ? "1px solid var(--pine-deep)" : "1px solid #666",
+    background: active ? "var(--navy)" : "#f0f0f0",
     color: active ? "#fff" : "#000",
     cursor: "pointer",
   };
@@ -165,10 +166,10 @@ export function ProfileView({
 
         <div className="panel-head">Photo</div>
         <div style={{ padding: 16 }}>
-          {data.picture_url ? (
+          {safeProfilePictureSrc(data.picture_url) ? (
             // eslint-disable-next-line @next/next/no-img-element
             <img
-              src={data.picture_url}
+              src={safeProfilePictureSrc(data.picture_url)!}
               alt=""
               width={280}
               style={{

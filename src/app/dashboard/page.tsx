@@ -1,27 +1,31 @@
 import Link from "next/link";
-import { redirect } from "next/navigation";
 import { SiteHeader } from "@/components/site-header";
 import { HomeToolbar } from "@/components/home-toolbar";
 import { ensureCsrfToken } from "@/lib/csrf";
 import { sql } from "@/lib/db";
-import { getCurrentUser } from "@/lib/session";
+import { requireAppUser } from "@/lib/session";
 import { activityClass, formatMd, formatMdY } from "@/lib/dates";
+import { listHomeUpdates } from "@/lib/home-updates";
 import { listPeopleToBuyFor } from "@/lib/people";
 import { ensurePersonalList } from "@/lib/lists";
+import { isProvisionedAdmin } from "@/lib/admin";
 import {
   CreateTogetherForm,
   DecideRequestForm,
+  FindByEmailForm,
   InviteMyListForm,
-  SearchPeoplePanel,
 } from "./forms";
 
 export default async function DashboardPage() {
-  const user = await getCurrentUser();
-  if (!user) redirect("/login");
+  const user = await requireAppUser();
   const csrf = await ensureCsrfToken();
   const myListId = await ensurePersonalList(user.id, user.display_name);
+  const showAdmin = isProvisionedAdmin(user);
 
-  const people = await listPeopleToBuyFor(user.id);
+  const [people, updates] = await Promise.all([
+    listPeopleToBuyFor(user.id),
+    listHomeUpdates(user.id),
+  ]);
 
   const incoming = await sql<{
     id: string;
@@ -112,8 +116,8 @@ export default async function DashboardPage() {
 
         {people.length === 0 ? (
           <p>
-            Nobody yet. Invite someone to your list, or search for a person and
-            request access to theirs.
+            Nobody yet. Invite someone to your list by email — when they accept,
+            they&apos;ll show up here.
           </p>
         ) : (
           <table className="legacy-table" style={{ maxWidth: 980 }}>
@@ -254,9 +258,9 @@ export default async function DashboardPage() {
             </div>
           </div>
           <div className="panel" style={{ minWidth: 280, flex: "1 1 280px" }}>
-            <div className="panel-head">Find a person</div>
+            <div className="panel-head">Request access by email</div>
             <div style={{ padding: 10 }}>
-              <SearchPeoplePanel csrf={csrf} />
+              <FindByEmailForm csrf={csrf} />
             </div>
           </div>
           <div className="panel" style={{ minWidth: 280, flex: "1 1 280px" }}>
@@ -266,6 +270,60 @@ export default async function DashboardPage() {
             </div>
           </div>
         </div>
+
+        <h2
+          style={{
+            color: "#000080",
+            marginTop: 28,
+            marginBottom: 8,
+            fontSize: 16,
+          }}
+        >
+          Updates
+        </h2>
+        {updates.length === 0 ? (
+          <p style={{ fontSize: 13, color: "#555", maxWidth: 560 }}>
+            Nothing recent. Gift adds on lists you can shop, accepted access
+            requests, and people who can newly see your list show up here.
+          </p>
+        ) : (
+          <table className="legacy-table" style={{ maxWidth: 720 }}>
+            <tbody>
+              {updates.map((u) => (
+                <tr key={u.id}>
+                  <td>{u.text}</td>
+                  <td
+                    align="right"
+                    className={activityClass(u.at)}
+                    style={{ whiteSpace: "nowrap", width: 1 }}
+                  >
+                    {formatMdY(u.at)}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+
+        <p
+          style={{
+            marginTop: 28,
+            fontSize: 12,
+            color: "#666",
+            maxWidth: 720,
+          }}
+        >
+          Occasional tools:{" "}
+          <Link href="/bought">Marked bought</Link>
+          {" · "}
+          <Link href="/removed">Removed gifts</Link>
+          {showAdmin ? (
+            <>
+              {" · "}
+              <Link href="/admin">Admin</Link>
+            </>
+          ) : null}
+        </p>
       </main>
     </>
   );

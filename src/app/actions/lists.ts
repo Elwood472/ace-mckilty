@@ -7,6 +7,8 @@ import { assertCsrf } from "@/lib/csrf";
 import { requireUser } from "@/lib/session";
 import { requireListOwner } from "@/lib/authz";
 import { ensurePersonalList } from "@/lib/lists";
+import { arePeopleRelated } from "@/lib/people";
+import { LIST_TITLE_MAX, sanitizePublicLabel } from "@/lib/text";
 
 function s(fd: FormData, key: string): string {
   const v = fd.get(key);
@@ -24,14 +26,14 @@ export async function createTogetherList(
     const user = await requireUser();
     await ensurePersonalList(user.id, user.display_name);
 
-    const title = s(formData, "title");
+    const title = sanitizePublicLabel(s(formData, "title"), LIST_TITLE_MAX);
     const anniversary = s(formData, "anniversary") || null;
     const ownerIds = formData
       .getAll("ownerIds")
       .filter((v): v is string => typeof v === "string" && v.length > 0);
 
-    if (!title || title.length > 120) {
-      return { error: "Enter a list title." };
+    if (!title) {
+      return { error: `Enter a list title (max ${LIST_TITLE_MAX} characters).` };
     }
     const uniqueOwners = [...new Set([user.id, ...ownerIds])];
     if (uniqueOwners.length < 2) {
@@ -42,6 +44,13 @@ export async function createTogetherList(
       if (oid === user.id) continue;
       const exists = await sql("select 1 from users where id = $1", [oid]);
       if (!exists.length) return { error: "All co-owners must be real accounts." };
+      // Co-owners must already share a list relationship (invite / access).
+      if (!(await arePeopleRelated(user.id, oid))) {
+        return {
+          error:
+            "Co-owners must already share list access with you. Invite or approve them first.",
+        };
+      }
     }
 
     const list = await sql<{ id: string }>(
@@ -70,9 +79,11 @@ export async function renameList(
     await assertCsrf(formData.get("csrf"));
     const user = await requireUser();
     const listId = s(formData, "listId");
-    const title = s(formData, "title");
+    const title = sanitizePublicLabel(s(formData, "title"), LIST_TITLE_MAX);
     await requireListOwner(listId, user.id);
-    if (!title) return { error: "Title required." };
+    if (!title) {
+      return { error: `Enter a list title (max ${LIST_TITLE_MAX} characters).` };
+    }
     await sql(`update wish_lists set title = $1 where id = $2`, [title, listId]);
     revalidatePath(`/lists/${listId}`);
     return { ok: "Renamed." };

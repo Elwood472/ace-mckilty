@@ -13,7 +13,8 @@ import {
 } from "@/lib/authz";
 import { ensurePersonalList, getPersonalListId } from "@/lib/lists";
 import { checkRateLimit } from "@/lib/rate-limit";
-import { searchPeople } from "@/lib/people";
+import { getClientIp } from "@/lib/client-ip";
+import { absoluteAppUrl } from "@/lib/app-url";
 
 function s(fd: FormData, key: string): string {
   const v = fd.get(key);
@@ -22,12 +23,79 @@ function s(fd: FormData, key: string): string {
 
 export type ActionState = { error?: string; ok?: string };
 
-function inviteBaseUrl(): string {
-  return (
-    process.env.APP_BASE_URL?.trim() ||
-    process.env.NEXT_PUBLIC_APP_URL?.trim() ||
-    ""
-  );
+/**
+ * Exact-email access request. Does not reveal whether the email is registered:
+ * unknown / no list / created / already-pending / already-have-access share one
+ * opaque success message. Never returns a list id (avoids confirming accounts).
+ */
+export async function requestListAccessByEmail(
+  _prev: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  const opaqueOk =
+    "If that email has an account, your request was recorded. They must approve before you can see their list. If you already shop for them, open their list from Home.";
+  try {
+    await assertCsrf(formData.get("csrf"));
+    const user = await requireUser();
+    const email = s(formData, "email").toLowerCase();
+    if (!email || !email.includes("@") || !email.includes(".")) {
+      return { error: "Enter a valid email." };
+    }
+    if (email === user.email.toLowerCase()) {
+      return { error: "That's your own email." };
+    }
+
+    const ip = await getClientIp();
+    if (
+      !(await checkRateLimit(`person-lookup:${user.id}`, {
+        maxHits: 10,
+        windowMs: 15 * 60 * 1000,
+      })) ||
+      !(await checkRateLimit(`person-lookup-ip:${ip}`, {
+        maxHits: 20,
+        windowMs: 15 * 60 * 1000,
+      })) ||
+      !(await checkRateLimit(`person-lookup-day:${user.id}`, {
+        maxHits: 40,
+        windowMs: 24 * 60 * 60 * 1000,
+      }))
+    ) {
+      return { error: "Too many requests. Try again later." };
+    }
+
+    const rows = await sql<{ id: string; display_name: string }>(
+      `select id, display_name from users where lower(email) = $1 limit 1`,
+      [email],
+    );
+    if (!rows.length) {
+      return { ok: opaqueOk };
+    }
+
+    const person = rows[0];
+    const listId = await getPersonalListId(person.id);
+    if (!listId) {
+      return { ok: opaqueOk };
+    }
+
+    if (await canViewList(listId, user.id)) {
+      // Same opaque copy — do not confirm the account or return a list id.
+      return { ok: opaqueOk };
+    }
+
+    // Reuse the same gates as requestListAccess (rate limits + account age).
+    const gate = new FormData();
+    gate.set("csrf", String(formData.get("csrf") ?? ""));
+    gate.set("listId", listId);
+    gate.set("ownerUserId", person.id);
+    const result = await requestListAccess({}, gate);
+    if (result.error) return { error: result.error };
+    return { ok: opaqueOk };
+  } catch (e) {
+    if (e instanceof Error && e.message === "UNAUTHORIZED") {
+      return { error: "Sign in required." };
+    }
+    return { error: "Could not send that request." };
+  }
 }
 
 export async function createListEmailInvite(
@@ -40,11 +108,107 @@ export async function createListEmailInvite(
     const listId = s(formData, "listId");
     const email = s(formData, "email").toLowerCase();
     await requireListOwner(listId, user.id);
-    if (!email || !email.includes("@")) {
+    if (!email || !email.includes("@") || !email.includes(".")) {
       return { error: "Enter a valid email." };
     }
-    if (!(await checkRateLimit(`create-invite:${user.id}`))) {
+
+    // Don't pile up invites for people who already have access.
+    const already = await sql(
+      `select 1
+       where exists (
+         select 1 from wish_list_owners o
+         join users u on u.id = o.user_id
+         where o.list_id = $1 and lower(u.email) = $2
+       ) or exists (
+         select 1 from list_access a
+         join users u on u.id = a.user_id
+         where a.list_id = $1 and lower(u.email) = $2
+       )`,
+      [listId, email],
+    );
+    if (already.length) {
+      // Clear any leftover open invites for this email on this list.
+      await sql(
+        `update list_invites
+         set accepted_at = coalesce(accepted_at, now())
+         where list_id = $1 and email is not null and lower(email) = $2
+           and accepted_at is null`,
+        [listId, email],
+      );
+      revalidatePath(`/lists/${listId}`);
+      return { ok: "That person already has access to this list." };
+    }
+
+    const ip = await getClientIp();
+    // requireUser already mandates 2FA enrollment (legitimate activity gate).
+    // Extra age gate: brand-new accounts cannot blast invites immediately.
+    const age = await sql<{ created_at: string }>(
+      "select created_at::text as created_at from users where id = $1",
+      [user.id],
+    );
+    const createdMs = age[0] ? new Date(age[0].created_at).getTime() : 0;
+    const accountAgeMs = Date.now() - createdMs;
+    if (accountAgeMs < 15 * 60 * 1000) {
+      return {
+        error:
+          "Finish setting up your account, then try inviting again in a few minutes.",
+      };
+    }
+
+    // Tight per-user / per-IP caps — open signup must not turn Resend into a spam relay.
+    if (
+      !(await checkRateLimit(`create-invite:${user.id}`, {
+        maxHits: 5,
+        windowMs: 15 * 60 * 1000,
+      }))
+    ) {
       return { error: "Too many invites. Try again later." };
+    }
+    if (
+      !(await checkRateLimit(`create-invite-ip:${ip}`, {
+        maxHits: 8,
+        windowMs: 15 * 60 * 1000,
+      }))
+    ) {
+      return { error: "Too many invites. Try again later." };
+    }
+    if (
+      !(await checkRateLimit(`outbound-email-user:${user.id}`, {
+        maxHits: 12,
+        windowMs: 60 * 60 * 1000,
+      }))
+    ) {
+      return { error: "Too many emails from this account. Try again later." };
+    }
+    if (
+      !(await checkRateLimit(`outbound-email-ip:${ip}`, {
+        maxHits: 20,
+        windowMs: 60 * 60 * 1000,
+      }))
+    ) {
+      return { error: "Too many emails from this network. Try again later." };
+    }
+    const dayCap = accountAgeMs < 7 * 24 * 60 * 60 * 1000 ? 8 : 20;
+    if (
+      !(await checkRateLimit(`create-invite-day:${user.id}`, {
+        maxHits: dayCap,
+        windowMs: 24 * 60 * 60 * 1000,
+      }))
+    ) {
+      return { error: "Daily invite limit reached. Try again tomorrow." };
+    }
+    if (accountAgeMs < 48 * 60 * 60 * 1000) {
+      if (
+        !(await checkRateLimit(`create-invite-new:${user.id}`, {
+          maxHits: 5,
+          windowMs: 48 * 60 * 60 * 1000,
+        }))
+      ) {
+        return {
+          error:
+            "New accounts can send a limited number of invites in the first two days. Try again later.",
+        };
+      }
     }
 
     const token = nanoid(24);
@@ -54,18 +218,27 @@ export async function createListEmailInvite(
       [listId, email, token, user.id],
     );
 
-    const list = await sql<{ title: string }>(
-      "select title from wish_lists where id = $1",
+    const owners = await sql<{ display_name: string }>(
+      `select u.display_name
+       from wish_list_owners o
+       join users u on u.id = o.user_id
+       where o.list_id = $1
+       order by u.display_name`,
       [listId],
     );
     const { inviteEmailBody, sendEmail } = await import("@/lib/email");
-    const base = inviteBaseUrl();
+    const { DISPLAY_NAME_MAX, sanitizePublicLabel } = await import(
+      "@/lib/text"
+    );
+    const ownerLabel = owners
+      .map((o) => sanitizePublicLabel(o.display_name, DISPLAY_NAME_MAX))
+      .filter((n): n is string => !!n)
+      .join(", ");
     const invitePath = `/invite/${token}`;
-    const inviteUrl = base ? `${base.replace(/\/$/, "")}${invitePath}` : invitePath;
+    const inviteUrl = absoluteAppUrl(invitePath);
     const mail = inviteEmailBody({
-      listTitle: list[0]?.title ?? "a wish list",
-      inviterName: user.display_name,
-      inviteUrl: base ? inviteUrl : `(open in the app) ${invitePath}`,
+      listOwnerLabel: ownerLabel,
+      inviteUrl,
     });
     const sent = await sendEmail({
       to: email,
@@ -74,16 +247,17 @@ export async function createListEmailInvite(
       html: mail.html,
     });
 
+    // Refresh the list invite panel only. Revalidating /dashboard remounts the
+    // home Invite form and wipes the green "Invite emailed…" flash.
     revalidatePath(`/lists/${listId}`);
-    revalidatePath("/dashboard");
     if (!sent.ok) {
       return {
-        ok: `Invite created (${invitePath}), but email failed: ${sent.error}`,
+        ok: `Invite created (${inviteUrl}), but email failed: ${sent.error}`,
       };
     }
     if (sent.mode === "stub") {
       return {
-        ok: `Invite created. Email stubbed (set RESEND_API_KEY to send). Invite link: ${invitePath}`,
+        ok: `Invite created. Email stubbed (set RESEND_API_KEY to send). Invite link: ${inviteUrl}`,
       };
     }
     return { ok: `Invite emailed to ${email}.` };
@@ -100,7 +274,13 @@ export async function createListEmailInvite(
 
 export async function acceptListInviteToken(
   token: string,
+  csrf?: string,
 ): Promise<ActionState> {
+  try {
+    await assertCsrf(csrf ?? null);
+  } catch {
+    return { error: "Invalid request. Refresh and try again." };
+  }
   try {
     const user = await requireUser();
     await ensurePersonalList(user.id, user.display_name);
@@ -116,13 +296,16 @@ export async function acceptListInviteToken(
        where token = $1 and accepted_at is null and expires_at > now()`,
       [token],
     );
-    if (!invites.length) return { error: "Invite is invalid or expired." };
+    const inviteUnavailable =
+      "This invite can't be accepted. It may be invalid, expired, already used, or meant for a different account.";
+    if (!invites.length) return { error: inviteUnavailable };
     const invite = invites[0];
+    // Every accept path requires a bound invite email that matches the signer.
     if (
-      invite.email &&
+      !invite.email ||
       invite.email.toLowerCase() !== user.email.toLowerCase()
     ) {
-      return { error: "This invite was sent to a different email." };
+      return { error: inviteUnavailable };
     }
 
     await grantListAccess(invite.list_id, user.id, null);
@@ -177,8 +360,62 @@ export async function requestListAccess(
     );
     if (amOwner.length) return { error: "You already own this list." };
 
-    if (!(await checkRateLimit(`access-req:${user.id}`))) {
+    const ip = await getClientIp();
+    if (
+      !(await checkRateLimit(`access-req:${user.id}`, {
+        maxHits: 8,
+        windowMs: 15 * 60 * 1000,
+      }))
+    ) {
       return { error: "Too many requests. Try again later." };
+    }
+    if (
+      !(await checkRateLimit(`access-req-ip:${ip}`, {
+        maxHits: 12,
+        windowMs: 15 * 60 * 1000,
+      }))
+    ) {
+      return { error: "Too many requests. Try again later." };
+    }
+    if (
+      !(await checkRateLimit(`outbound-email-user:${user.id}`, {
+        maxHits: 12,
+        windowMs: 60 * 60 * 1000,
+      }))
+    ) {
+      return { error: "Too many emails from this account. Try again later." };
+    }
+    if (
+      !(await checkRateLimit(`outbound-email-ip:${ip}`, {
+        maxHits: 20,
+        windowMs: 60 * 60 * 1000,
+      }))
+    ) {
+      return { error: "Too many emails from this network. Try again later." };
+    }
+    const age = await sql<{ created_at: string }>(
+      "select created_at::text as created_at from users where id = $1",
+      [user.id],
+    );
+    const createdMs = age[0] ? new Date(age[0].created_at).getTime() : 0;
+    if (Date.now() - createdMs < 15 * 60 * 1000) {
+      return {
+        error:
+          "Finish setting up your account, then try again in a few minutes.",
+      };
+    }
+    if (Date.now() - createdMs < 24 * 60 * 60 * 1000) {
+      if (
+        !(await checkRateLimit(`access-req-new:${user.id}`, {
+          maxHits: 2,
+          windowMs: 24 * 60 * 60 * 1000,
+        }))
+      ) {
+        return {
+          error:
+            "New accounts can send only a few access requests on the first day.",
+        };
+      }
     }
 
     const alreadyPending = await sql(
@@ -211,11 +448,7 @@ export async function requestListAccess(
       [listId],
     );
     const { accessRequestEmailBody, sendEmail } = await import("@/lib/email");
-    const base = inviteBaseUrl();
-    const reviewPath = `/lists/${listId}`;
-    const reviewUrl = base
-      ? `${base.replace(/\/$/, "")}${reviewPath}`
-      : `(open in the app) ${reviewPath}`;
+    const reviewUrl = absoluteAppUrl(`/lists/${listId}`);
     const mail = accessRequestEmailBody({
       listTitle: listMeta[0]?.title ?? "a wish list",
       requesterName: user.display_name,
@@ -302,6 +535,18 @@ export async function decideAccessRequest(
          set status = 'approved', decided_at = now() where id = $1`,
         [requestId],
       );
+      // Retire any open email invites for this person on this list.
+      await sql(
+        `update list_invites i
+         set accepted_at = coalesce(i.accepted_at, now())
+         from users u
+         where i.list_id = $1
+           and u.id = $2
+           and i.email is not null
+           and lower(i.email) = lower(u.email)
+           and i.accepted_at is null`,
+        [req.list_id, req.requester_id],
+      );
       revalidatePath("/dashboard");
       revalidatePath(`/lists/${req.list_id}`);
       return { ok: "Access approved." };
@@ -349,18 +594,3 @@ export async function revokeListAccess(
   }
 }
 
-export async function searchPeopleAction(
-  query: string,
-): Promise<
-  {
-    id: string;
-    display_name: string;
-    email: string;
-    personal_list_id: string | null;
-    has_access: boolean;
-    pending_request: boolean;
-  }[]
-> {
-  const user = await requireUser();
-  return searchPeople(user.id, query);
-}

@@ -3,7 +3,7 @@ import { notFound, redirect } from "next/navigation";
 import { SiteHeader } from "@/components/site-header";
 import { ensureCsrfToken } from "@/lib/csrf";
 import { sql } from "@/lib/db";
-import { getCurrentUser } from "@/lib/session";
+import { requireAppUser } from "@/lib/session";
 import { isListOwner } from "@/lib/authz";
 import type { Item } from "@/lib/types";
 import { EditItemForm } from "../../../list-client";
@@ -14,8 +14,7 @@ type Props = {
 
 export default async function EditGiftPage({ params }: Props) {
   const { listId, itemId } = await params;
-  const user = await getCurrentUser();
-  if (!user) redirect("/login");
+  const user = await requireAppUser();
   if (!(await isListOwner(listId, user.id))) notFound();
 
   const lists = await sql<{ id: string; title: string }>(

@@ -3,13 +3,13 @@ import { redirect } from "next/navigation";
 import { SiteHeader } from "@/components/site-header";
 import { ensureCsrfToken } from "@/lib/csrf";
 import { sql } from "@/lib/db";
-import { getCurrentUser } from "@/lib/session";
+import { requireAppUser } from "@/lib/session";
 import { formatMdY } from "@/lib/dates";
 import { BoughtActions } from "./bought-actions";
+import { ReceivedCheckbox } from "./received-checkbox";
 
 export default async function BoughtPage() {
-  const user = await getCurrentUser();
-  if (!user) redirect("/login");
+  const user = await requireAppUser();
   const csrf = await ensureCsrfToken();
 
   const rows = await sql<{
@@ -17,6 +17,7 @@ export default async function BoughtPage() {
     item_id: string;
     quantity: number;
     created_at: string;
+    buyer_received: boolean;
     title: string;
     price: string | null;
     list_title: string;
@@ -25,6 +26,7 @@ export default async function BoughtPage() {
   }>(
     `select p.id as purchase_id, p.item_id, p.quantity,
             p.created_at::text as created_at,
+            p.buyer_received,
             i.title, i.price::text as price, i.list_id,
             l.title as list_title,
             string_agg(u.display_name, ', ' order by u.display_name) as for_names
@@ -35,7 +37,7 @@ export default async function BoughtPage() {
      join users u on u.id = o.user_id
      where p.buyer_user_id = $1 and p.buyer_purged = false
      group by p.id, i.id, l.id
-     order by p.created_at desc`,
+     order by p.buyer_received asc, p.created_at desc`,
     [user.id],
   );
 
@@ -47,30 +49,40 @@ export default async function BoughtPage() {
           <Link href="/dashboard">← Home</Link>
         </p>
         <h1 className="brand-title" style={{ fontSize: 20 }}>
-          Gifts I Bought
+          Marked bought
         </h1>
         <p>
-          Put an item back if you change your mind. List owners never see that you
-          marked these. Purge clears a row from <i>this</i> list only.
+          Put an item back if you change your mind. Check <b>Received</b> when
+          the gift is in hand (handy after a big shopping run). List owners never
+          see that you marked these. Purge clears a row from <i>this</i> list
+          only.
         </p>
-        <table className="legacy-table" style={{ maxWidth: 900, marginTop: 12 }}>
+        <table className="legacy-table" style={{ maxWidth: 980, marginTop: 12 }}>
           <thead>
             <tr>
               <th>Purchased For</th>
               <th>Purchased Date</th>
               <th>Item</th>
               <th>Price</th>
+              <th>Received</th>
               <th>Action</th>
             </tr>
           </thead>
           <tbody>
             {rows.length === 0 ? (
               <tr>
-                <td colSpan={5}>You do not have any &quot;Bought Gifts&quot; to show.</td>
+                <td colSpan={6}>You do not have any &quot;Bought Gifts&quot; to show.</td>
               </tr>
             ) : (
               rows.map((r) => (
-                <tr key={r.purchase_id}>
+                <tr
+                  key={r.purchase_id}
+                  style={
+                    r.buyer_received
+                      ? { color: "#555", opacity: 0.85 }
+                      : undefined
+                  }
+                >
                   <td className="group-name">{r.for_names}</td>
                   <td>{formatMdY(r.created_at)}</td>
                   <td>
@@ -79,6 +91,13 @@ export default async function BoughtPage() {
                   </td>
                   <td align="right">
                     {r.price != null ? `$${Number(r.price).toFixed(2)}` : ""}
+                  </td>
+                  <td>
+                    <ReceivedCheckbox
+                      csrf={csrf}
+                      purchaseId={r.purchase_id}
+                      received={r.buyer_received}
+                    />
                   </td>
                   <td>
                     <BoughtActions

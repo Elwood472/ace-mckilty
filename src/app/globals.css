@@ -154,6 +154,17 @@ a:active {
   padding: 0;
 }
 
+.legacy-table tr.category-section td {
+  background: var(--mist);
+  color: var(--navy);
+  font-weight: 700;
+  font-size: 13px;
+  text-align: left;
+  padding: 7px 10px;
+  border: 1px solid var(--border);
+  border-top-width: 2px;
+}
+
 .legacy-table .group-name {
   font-weight: 700;
 }
@@ -222,14 +233,217 @@ a.btn:hover {
 
 .site-header {
   border-bottom: 1px solid var(--border-soft);
-  padding: 8px 12px;
-  background: #fff;
+  padding: 8px 12px 0;
+  /* Opaque enough that scrolling content does not show through */
+  background: color-mix(in srgb, var(--page) 96%, #fff);
+  position: sticky;
+  top: 0;
+  z-index: 40;
+  overflow: visible;
+}
+
+.site-header-row {
+  display: grid;
+  /* Left keeps natural width so brand + banner stay one row */
+  grid-template-columns: max-content minmax(0, 1fr);
+  align-items: end;
+  gap: 12px 16px;
+  min-height: 52px;
+}
+
+.site-header-left {
+  display: flex;
+  flex-direction: row;
+  flex-wrap: nowrap;
+  align-items: flex-end;
+  gap: 0;
+  /* Gap ≈ brand block width (AM + Ace McKilty / Gift Registry) */
+  column-gap: 0;
+}
+
+.site-header-brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding-bottom: 8px;
+  flex-shrink: 0;
+}
+
+.site-header-banner {
+  /* Offset ≈ brand name width so art sits to the right of the title */
+  margin-left: 9.5rem;
+  width: 160px;
+  height: 72px;
+  max-height: 72px;
+  overflow: hidden;
+  display: flex;
+  align-items: flex-end;
+  justify-content: flex-start;
+  position: relative;
+  z-index: 3;
+  pointer-events: none;
+  flex-shrink: 0;
+}
+
+.site-header-banner img {
+  display: block;
+  max-width: 100%;
+  max-height: 72px;
+  width: auto;
+  height: auto;
+  object-fit: contain;
+  object-position: left bottom;
+  /* Forearm sits on the header / page rule from above */
+  margin-bottom: 0;
+  filter: drop-shadow(0 1px 0 rgba(0, 0, 0, 0.05));
+}
+
+.site-header-nav {
+  padding-bottom: 10px;
+  font-size: 12px;
+  text-align: right;
+  white-space: nowrap;
+  min-width: 0;
+}
+
+@media (max-width: 720px) {
+  .site-header-row {
+    grid-template-columns: 1fr;
+    align-items: end;
+  }
+  .site-header-banner {
+    margin-left: 5.5rem;
+    width: 120px;
+    height: 56px;
+    max-height: 56px;
+  }
+  .site-header-banner img {
+    max-height: 56px;
+  }
+  .site-header-nav {
+    text-align: left;
+    padding-bottom: 8px;
+    white-space: normal;
+  }
 }
 
 .site-main {
   padding: 12px 16px 40px;
   position: relative;
   z-index: 1;
+}
+
+/* Quiet Waves atmosphere v1f — accent-tinted ribbons; follows user Colors via --navy / --page */
+.quiet-waves {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  overflow: hidden;
+  color: var(--navy);
+  background: var(--page);
+}
+
+.quiet-waves-top,
+.quiet-waves-bottom {
+  position: absolute;
+  left: 0;
+  width: 100%;
+  height: min(160px, 22vh);
+}
+
+.quiet-waves-top {
+  top: 0;
+  opacity: 0.09;
+}
+
+.quiet-waves-bottom {
+  bottom: 0;
+  opacity: 0.07;
+  transform: scaleY(-1);
+}
+
+.faq-page {
+  max-width: 640px;
+}
+
+.faq-title {
+  font-size: 22px;
+  margin: 8px 0 6px;
+}
+
+.faq-lede {
+  color: #555;
+  margin: 0 0 16px;
+  max-width: 36em;
+  line-height: 1.45;
+}
+
+.faq-toc {
+  margin: 0 0 20px;
+  padding: 10px 12px;
+  background: var(--mist);
+  border: 1px solid var(--border-soft);
+}
+
+.faq-toc ol {
+  margin: 0;
+  padding-left: 1.25rem;
+  line-height: 1.55;
+}
+
+.faq-toc a {
+  color: var(--navy);
+  font-weight: 700;
+}
+
+.faq-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.faq-item {
+  border: 1px solid var(--border-soft);
+  background: #fff;
+}
+
+.faq-item summary {
+  cursor: pointer;
+  list-style: none;
+  padding: 10px 12px;
+  font-weight: 700;
+  color: var(--navy);
+  background: var(--mist);
+  border-bottom: 1px solid transparent;
+}
+
+.faq-item summary::-webkit-details-marker {
+  display: none;
+}
+
+.faq-item summary::before {
+  content: "▸ ";
+  color: #666;
+  font-weight: 400;
+}
+
+.faq-item[open] summary {
+  border-bottom-color: var(--border-soft);
+}
+
+.faq-item[open] summary::before {
+  content: "▾ ";
+}
+
+.faq-answer {
+  padding: 12px 14px 14px;
+  line-height: 1.5;
+  color: #222;
+}
+
+.faq-answer p {
+  margin: 0;
 }
 
 .home-toolbar {
@@ -500,5 +714,57 @@ a.btn:hover {
   .hub-hero {
     padding-top: 48px;
     justify-content: flex-start;
+  }
+}
+
+/* Gift list thumbnail → larger preview on hover/focus */
+.gift-thumb {
+  width: 64px;
+  height: 64px;
+  border-radius: 6px;
+  object-fit: cover;
+  cursor: zoom-in;
+  vertical-align: top;
+}
+
+.gift-thumb:focus-visible {
+  outline: 2px solid var(--navy);
+  outline-offset: 2px;
+}
+
+.gift-thumb-preview {
+  position: fixed;
+  z-index: 80;
+  pointer-events: none;
+  padding: 6px;
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.18);
+}
+
+.gift-thumb-preview img {
+  display: block;
+  max-width: min(360px, 70vw);
+  max-height: min(360px, 70vh);
+  width: auto;
+  height: auto;
+  object-fit: contain;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .gift-thumb-preview {
+    animation: gift-thumb-in 140ms ease-out;
+  }
+}
+
+@keyframes gift-thumb-in {
+  from {
+    opacity: 0;
+    transform: scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
   }
 }

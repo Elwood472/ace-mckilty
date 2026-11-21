@@ -27,10 +27,8 @@ export default async function GiftsHomePage() {
         </h1>
         <p style={{ maxWidth: 560, marginTop: 12 }}>
           Keep a personal wish list and share it with the people you choose —
-          invite by email, or let someone request access and approve them. When
-          a gift is marked bought, everyone except the list owner can see that
-          it was purchased. Home sorts people you can buy for by upcoming
-          birthday.
+          invite by email. When a gift is marked bought, everyone except the
+          list owner can see that it was purchased.
         </p>
         <p style={{ marginTop: 16 }}>
           <Link href="/login" className="btn btn-primary">
