@@ -2,7 +2,10 @@ import { sql } from "@/lib/db";
 
 export type HomeUpdate = {
   id: string;
-  text: string;
+  /** Person named in the line (shown bold). */
+  actor: string;
+  /** Rest of the sentence after the name, e.g. "added 2 gifts". */
+  action: string;
   at: string;
 };
 
@@ -87,13 +90,10 @@ export async function listHomeUpdates(userId: string): Promise<HomeUpdate[]> {
   const updates: HomeUpdate[] = [];
 
   for (const g of gifts) {
-    const text =
-      g.n === 1
-        ? `${g.actor_name} added a gift`
-        : `${g.actor_name} added ${g.n} gifts`;
     updates.push({
       id: `gift:${g.actor_id}:${g.day_et}`,
-      text,
+      actor: g.actor_name,
+      action: g.n === 1 ? "added a gift" : `added ${g.n} gifts`,
       at: g.at,
     });
   }
@@ -101,19 +101,20 @@ export async function listHomeUpdates(userId: string): Promise<HomeUpdate[]> {
   for (const a of accepted) {
     updates.push({
       id: `accepted:${a.id}`,
-      text: `${a.actor_name} accepted your request`,
+      actor: a.actor_name,
+      action: "accepted your request",
       at: a.at,
     });
   }
 
   for (const v of viewers) {
-    const text =
-      v.list_type === "personal"
-        ? `${v.actor_name} can now see your list`
-        : `${v.actor_name} can now see ${v.list_title}`;
     updates.push({
       id: `viewer:${v.list_id}:${v.user_id}`,
-      text,
+      actor: v.actor_name,
+      action:
+        v.list_type === "personal"
+          ? "can now see your list"
+          : `can now see ${v.list_title}`,
       at: v.at,
     });
   }

@@ -333,7 +333,26 @@ a.btn:hover {
   z-index: 1;
 }
 
-/* Quiet Waves atmosphere v1f — accent-tinted ribbons; follows user Colors via --navy / --page */
+/* Home Updates — simple feed list (not a table), matches mockup-today-frame */
+.home-updates {
+  list-style: disc;
+  margin: 6px 0 0 1.25rem;
+  padding: 0;
+  max-width: 560px;
+  font-size: 13px;
+  line-height: 1.55;
+  color: #222;
+}
+
+.home-updates li {
+  margin: 2px 0;
+}
+
+.home-updates-when {
+  white-space: nowrap;
+}
+
+/* Quiet Waves atmosphere v1g — accent-tinted ribbons; follows user Colors via --navy / --page */
 .quiet-waves {
   position: fixed;
   inset: 0;

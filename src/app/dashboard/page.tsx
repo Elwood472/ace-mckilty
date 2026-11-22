@@ -273,13 +273,22 @@ export default async function DashboardPage() {
 
         <h2
           style={{
-            color: "#000080",
+            color: "var(--navy)",
             marginTop: 28,
-            marginBottom: 8,
+            marginBottom: 4,
             fontSize: 16,
           }}
         >
-          Updates
+          Updates{" "}
+          <span
+            style={{
+              fontWeight: 400,
+              fontSize: 13,
+              color: "#444",
+            }}
+          >
+            recent activity on lists you care about.
+          </span>
         </h2>
         {updates.length === 0 ? (
           <p style={{ fontSize: 13, color: "#555", maxWidth: 560 }}>
@@ -287,22 +296,17 @@ export default async function DashboardPage() {
             requests, and people who can newly see your list show up here.
           </p>
         ) : (
-          <table className="legacy-table" style={{ maxWidth: 720 }}>
-            <tbody>
-              {updates.map((u) => (
-                <tr key={u.id}>
-                  <td>{u.text}</td>
-                  <td
-                    align="right"
-                    className={activityClass(u.at)}
-                    style={{ whiteSpace: "nowrap", width: 1 }}
-                  >
-                    {formatMdY(u.at)}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+          <ul className="home-updates">
+            {updates.map((u) => (
+              <li key={u.id}>
+                <b>{u.actor}</b> {u.action}
+                <span className={`home-updates-when ${activityClass(u.at)}`}>
+                  {" · "}
+                  {formatMdY(u.at)}
+                </span>
+              </li>
+            ))}
+          </ul>
         )}
 
         <p
