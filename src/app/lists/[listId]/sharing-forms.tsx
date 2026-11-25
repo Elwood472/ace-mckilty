@@ -5,6 +5,7 @@ import {
   createListEmailInvite,
   decideAccessRequest,
   revokeListAccess,
+  updateListAccessRole,
   type ActionState,
 } from "@/app/actions/access";
 import { CsrfField } from "@/components/csrf-field";
@@ -107,6 +108,45 @@ export function RevokeAccessForm({
         Revoke
       </button>
       <Flash error={state.error} />
+    </form>
+  );
+}
+
+export function SetAccessRoleForm({
+  csrf,
+  listId,
+  userId,
+  role,
+}: {
+  csrf: string;
+  listId: string;
+  userId: string;
+  role: "viewer" | "editor";
+}) {
+  const [state, action, pending] = useActionState(updateListAccessRole, initial);
+  const nextRole = role === "editor" ? "viewer" : "editor";
+  const label =
+    role === "editor" ? "Make shopper" : "Allow edit gifts";
+  return (
+    <form action={action} style={{ display: "inline" }}>
+      <CsrfField token={csrf} />
+      <input type="hidden" name="listId" value={listId} />
+      <input type="hidden" name="userId" value={userId} />
+      <input type="hidden" name="role" value={nextRole} />
+      <button
+        type="submit"
+        className="text-xs font-semibold"
+        style={{ color: "var(--navy)" }}
+        disabled={pending}
+        title={
+          nextRole === "editor"
+            ? "They can add/edit/remove gifts; purchase status stays hidden from them"
+            : "They can shop again and will see purchase status; they can no longer edit gifts"
+        }
+      >
+        {pending ? "…" : label}
+      </button>
+      <Flash error={state.error} ok={state.ok} />
     </form>
   );
 }

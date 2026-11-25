@@ -8,9 +8,8 @@ import { assertCsrf } from "@/lib/csrf";
 import { requireUser } from "@/lib/session";
 import {
   filterListAccessViewerIds,
-  getListOwnerIds,
-  isListOwner,
-  requireListOwner,
+  hidesPurchaseSpoilers,
+  requireCanEditListItems,
   requireListViewer,
 } from "@/lib/authz";
 import { resolveSource } from "@/lib/source";
@@ -76,7 +75,7 @@ export async function createItem(
     await assertCsrf(formData.get("csrf"));
     const user = await requireUser();
     const listId = s(formData, "listId");
-    await requireListOwner(listId, user.id);
+    await requireCanEditListItems(listId, user.id);
 
     const title = s(formData, "title");
     if (!title) return { error: "Title is required." };
@@ -181,7 +180,7 @@ export async function updateItem(
     );
     if (!items.length) return { error: "Item not found." };
     listId = items[0].list_id;
-    await requireListOwner(listId, user.id);
+    await requireCanEditListItems(listId, user.id);
 
     const title = s(formData, "title");
     if (!title) return { error: "Title is required." };
@@ -277,7 +276,7 @@ export async function deleteItem(
       [itemId],
     );
     if (!items.length) return { error: "Item not found." };
-    await requireListOwner(items[0].list_id, user.id);
+    await requireCanEditListItems(items[0].list_id, user.id);
     await sql(
       `update items set deleted = true, deleted_at = now(), updated_at = now()
        where id = $1`,
@@ -305,7 +304,7 @@ export async function restoreItem(
       [itemId],
     );
     if (!items.length) return { error: "Item not found." };
-    await requireListOwner(items[0].list_id, user.id);
+    await requireCanEditListItems(items[0].list_id, user.id);
     await sql(
       `update items set deleted = false, deleted_at = null, updated_at = now()
        where id = $1`,
@@ -333,7 +332,7 @@ export async function purgeRemovedItem(
       [itemId],
     );
     if (!items.length) return { error: "Item not found." };
-    await requireListOwner(items[0].list_id, user.id);
+    await requireCanEditListItems(items[0].list_id, user.id);
     await sql(
       `update items set user_purged = true, updated_at = now() where id = $1`,
       [itemId],
@@ -426,11 +425,14 @@ export async function markPurchased(
 
     await requireListViewer(item.list_id, user.id);
 
-    if (await isListOwner(item.list_id, user.id)) {
-      return { error: "You cannot mark items on your own list as purchased." };
+    if (await hidesPurchaseSpoilers(item.list_id, user.id)) {
+      return {
+        error:
+          "You cannot mark items purchased on a list you own or help edit.",
+      };
     }
 
-    // Same visibility rules as listVisibleItems for non-owners.
+    // Same visibility rules as listVisibleItems for shoppers.
     if (item.deleted) return { error: "Item not found." };
     if (item.display_date) {
       const today = new Date().toISOString().slice(0, 10);
@@ -509,8 +511,7 @@ export async function unpurchase(
     );
     if (!items.length) return { error: "Item not found." };
 
-    const owners = await getListOwnerIds(items[0].list_id);
-    if (owners.includes(user.id)) {
+    if (await hidesPurchaseSpoilers(items[0].list_id, user.id)) {
       return { error: "Not allowed." };
     }
 

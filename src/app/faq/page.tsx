@@ -30,6 +30,20 @@ const FAQS: { id: string; q: string; a: ReactNode }[] = [
     ),
   },
   {
+    id: "editors",
+    q: "Can someone else edit my list for me?",
+    a: (
+      <>
+        Yes. After they can view your list, open the list and under{" "}
+        <b>Who can view</b> choose <b>Allow edit gifts</b>. They can
+        add/edit/remove gifts, but purchase status stays hidden from them — they
+        won&apos;t see what was bought on your list, and they still can&apos;t
+        see what you bought for other people. Switch them back to shopper anytime
+        with <b>Make shopper</b>.
+      </>
+    ),
+  },
+  {
     id: "birthdays",
     q: "How do birthdays show up?",
     a: (

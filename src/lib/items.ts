@@ -1,5 +1,8 @@
 import { sql } from "./db";
-import { getListOwnerIds, isListOwner } from "./authz";
+import {
+  getListOwnerIds,
+  hidesPurchaseSpoilers,
+} from "./authz";
 import type { ItemView, SortDir, SortKey } from "./types";
 
 type RawItem = {
@@ -60,23 +63,27 @@ export async function listVisibleItems(
   viewerId: string,
   filters: ItemFilters = {},
 ): Promise<ItemView[]> {
-  const owner = await isListOwner(listId, viewerId);
+  // Owners and editors manage gifts without purchase spoilers.
+  const spoilerBlind = await hidesPurchaseSpoilers(listId, viewerId);
   const ownerIds = await getListOwnerIds(listId);
 
   const params: unknown[] = [listId, viewerId];
   const where: string[] = ["i.list_id = $1", "i.deleted = false"];
 
-  // Restricted: owners always see; others only if listed as viewer
+  // Restricted: owners/editors always see; shoppers only if listed as viewer
   where.push(
     `(i.restricted = false or exists (
       select 1 from wish_list_owners o where o.list_id = i.list_id and o.user_id = $2
+    ) or exists (
+      select 1 from list_access a
+      where a.list_id = i.list_id and a.user_id = $2 and a.role = 'editor'
     ) or exists (
       select 1 from item_viewers v where v.item_id = i.id and v.user_id = $2
     ))`,
   );
 
-  // Show-to-others starting date: non-owners only see items that are due
-  if (!owner) {
+  // Show-to-others starting date: shoppers only see items that are due
+  if (!spoilerBlind) {
     where.push(`(i.display_date is null or i.display_date <= current_date)`);
   }
 
@@ -126,7 +133,7 @@ export async function listVisibleItems(
       row.quantity == null ? purchased > 0 : remaining !== null && remaining <= 0;
 
     let iBought = false;
-    if (!owner) {
+    if (!spoilerBlind) {
       const mine = await sql<{ qty: number }>(
         `select coalesce(sum(quantity), 0)::int as qty from purchases
          where item_id = $1 and buyer_user_id = $2`,
@@ -137,14 +144,14 @@ export async function listVisibleItems(
 
     const view: ItemView = {
       ...row,
-      purchased_qty: owner ? 0 : purchased,
-      remaining: owner ? row.quantity : remaining,
-      is_taken: owner ? false : isTaken,
-      i_bought: owner ? false : iBought,
+      purchased_qty: spoilerBlind ? 0 : purchased,
+      remaining: spoilerBlind ? row.quantity : remaining,
+      is_taken: spoilerBlind ? false : isTaken,
+      i_bought: spoilerBlind ? false : iBought,
     };
 
-    // Owner sees who can view restricted items (not buyers)
-    if (owner && row.restricted) {
+    // Owners/editors see who can view restricted items (not buyers)
+    if (spoilerBlind && row.restricted) {
       const viewers = await sql<{ display_name: string }>(
         `select u.display_name from item_viewers v
          join users u on u.id = v.user_id
@@ -155,7 +162,7 @@ export async function listVisibleItems(
       view.viewer_names = viewers.map((v) => v.display_name);
     }
 
-    // Never expose buyer identity to owners via this payload
+    // Never expose buyer identity to owners/editors via this payload
     void ownerIds;
     views.push(view);
   }

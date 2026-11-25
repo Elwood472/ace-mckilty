@@ -10,6 +10,8 @@ import {
   grantListAccess,
   requireListOwner,
   canViewList,
+  setListAccessRole,
+  type ListAccessRole,
 } from "@/lib/authz";
 import { ensurePersonalList, getPersonalListId } from "@/lib/lists";
 import { checkRateLimit } from "@/lib/rate-limit";
@@ -591,6 +593,39 @@ export async function revokeListAccess(
     return { ok: "Access removed." };
   } catch {
     return { error: "Could not revoke access." };
+  }
+}
+
+/**
+ * Owner sets whether someone shops (viewer) or helps manage gifts (editor).
+ * Editors can add/edit/remove gifts but never see purchase spoilers on this list.
+ */
+export async function updateListAccessRole(
+  _prev: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  try {
+    await assertCsrf(formData.get("csrf"));
+    const user = await requireUser();
+    const listId = s(formData, "listId");
+    const memberId = s(formData, "userId");
+    const roleRaw = s(formData, "role");
+    const role: ListAccessRole =
+      roleRaw === "editor" ? "editor" : "viewer";
+    await requireListOwner(listId, user.id);
+    if (!memberId) return { error: "Pick a person." };
+    const ok = await setListAccessRole(listId, memberId, role);
+    if (!ok) return { error: "That person does not have access." };
+    revalidatePath(`/lists/${listId}`);
+    revalidatePath("/dashboard");
+    return {
+      ok:
+        role === "editor"
+          ? "They can now edit gifts on this list (purchase status stays hidden from them)."
+          : "They can shop this list again (they can no longer edit gifts).",
+    };
+  } catch {
+    return { error: "Could not update access." };
   }
 }
 

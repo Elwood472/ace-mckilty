@@ -215,14 +215,18 @@ function SortHeader({
 
 export function ItemTable({
   items,
-  owner,
+  canEdit,
+  hidePurchases,
   csrf,
   listId,
   sort,
   dir,
 }: {
   items: ItemView[];
-  owner: boolean;
+  /** Owner or editor — show add/edit/remove. */
+  canEdit: boolean;
+  /** Owner or editor — never show purchase / taken UI. */
+  hidePurchases: boolean;
   csrf: string;
   listId: string;
   sort: SortKey;
@@ -232,7 +236,7 @@ export function ItemTable({
     return (
       <p className="p-6 text-muted">
         No items match these filters
-        {owner ? (
+        {canEdit ? (
           <>
             {" — "}
             <Link href={`/lists/${listId}/add`}>add a gift</Link>.
@@ -295,7 +299,8 @@ export function ItemTable({
                 ) : null}
                 <ItemRow
                   item={item}
-                  owner={owner}
+                  canEdit={canEdit}
+                  hidePurchases={hidePurchases}
                   csrf={csrf}
                   listId={listId}
                 />
@@ -310,12 +315,14 @@ export function ItemTable({
 
 function ItemRow({
   item,
-  owner,
+  canEdit,
+  hidePurchases,
   csrf,
   listId,
 }: {
   item: ItemView;
-  owner: boolean;
+  canEdit: boolean;
+  hidePurchases: boolean;
   csrf: string;
   listId: string;
 }) {
@@ -335,7 +342,7 @@ function ItemRow({
   const qtyLabel =
     item.quantity == null
       ? "Unlimited"
-      : owner
+      : hidePurchases
         ? String(item.quantity)
         : `${item.remaining ?? 0} left / ${item.quantity}`;
 
@@ -344,7 +351,7 @@ function ItemRow({
       className={[
         "row-hover border-b border-[rgba(20,53,44,0.08)] align-top",
         item.restricted ? "restricted-cue" : "",
-        !owner && item.is_taken ? "taken-row" : "",
+        !hidePurchases && item.is_taken ? "taken-row" : "",
       ].join(" ")}
     >
       <td className="px-4 py-3">
@@ -371,7 +378,7 @@ function ItemRow({
             {item.restricted ? (
               <p className="mt-1 text-xs font-semibold text-restricted">
                 Restricted
-                {owner && item.viewer_names
+                {canEdit && item.viewer_names
                   ? ` · visible to ${item.viewer_names.join(", ") || "nobody yet"}`
                   : ""}
               </p>
@@ -387,7 +394,7 @@ function ItemRow({
       <td className="px-4 py-3">{qtyLabel}</td>
       <td className="px-4 py-3 text-muted">{item.display_date ?? "—"}</td>
       <td className="px-4 py-3">
-        {owner ? (
+        {canEdit ? (
           <div className="space-y-1">
             <div>
               <Link

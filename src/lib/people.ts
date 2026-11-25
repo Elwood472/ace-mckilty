@@ -14,7 +14,7 @@ export type BuyForPerson = {
   days_until_birthday: number | null;
 };
 
-/** People whose personal lists you have been granted access to. */
+/** People whose personal lists you can shop (viewer access, not editor). */
 export async function listPeopleToBuyFor(
   viewerId: string,
 ): Promise<BuyForPerson[]> {
@@ -35,6 +35,7 @@ export async function listPeopleToBuyFor(
      join wish_list_owners o on o.list_id = l.id
      join users u on u.id = o.user_id
      where a.user_id = $1
+       and a.role = 'viewer'
        and o.user_id <> $1`,
     [viewerId],
   );
@@ -81,6 +82,32 @@ export async function listPeopleToBuyFor(
   });
 
   return enriched;
+}
+
+export type EditableList = {
+  list_id: string;
+  list_title: string;
+  owner_names: string;
+};
+
+/** Lists where you are an editor (manage gifts; purchase status stays hidden). */
+export async function listListsYouEdit(
+  userId: string,
+): Promise<EditableList[]> {
+  return sql<EditableList>(
+    `select l.id as list_id,
+            l.title as list_title,
+            string_agg(u.display_name, ', ' order by u.display_name) as owner_names
+     from list_access a
+     join wish_lists l on l.id = a.list_id
+     join wish_list_owners o on o.list_id = l.id
+     join users u on u.id = o.user_id
+     where a.user_id = $1
+       and a.role = 'editor'
+     group by l.id, l.title
+     order by lower(l.title)`,
+    [userId],
+  );
 }
 
 /**

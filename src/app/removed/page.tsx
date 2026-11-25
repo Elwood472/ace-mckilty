@@ -28,10 +28,18 @@ export default async function RemovedPage() {
             l.title as list_title
      from items i
      join wish_lists l on l.id = i.list_id
-     join wish_list_owners o on o.list_id = l.id
-     where o.user_id = $1
-       and i.deleted = true
+     where i.deleted = true
        and i.user_purged = false
+       and (
+         exists (
+           select 1 from wish_list_owners o
+           where o.list_id = l.id and o.user_id = $1
+         )
+         or exists (
+           select 1 from list_access a
+           where a.list_id = l.id and a.user_id = $1 and a.role = 'editor'
+         )
+       )
      order by i.category, i.deleted_at desc`,
     [user.id],
   );
@@ -47,8 +55,8 @@ export default async function RemovedPage() {
           Removed gifts
         </h1>
         <p>
-          Put it back restores the gift to your list. PURGE removes it from this
-          history (cannot undo).
+          Put it back restores the gift. PURGE removes it from this history
+          (cannot undo). Includes lists you own and lists you help edit.
         </p>
         <table className="legacy-table" style={{ maxWidth: 900, marginTop: 12 }}>
           <thead>

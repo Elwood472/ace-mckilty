@@ -6,7 +6,7 @@ import { sql } from "@/lib/db";
 import { requireAppUser } from "@/lib/session";
 import { activityClass, formatMd, formatMdY } from "@/lib/dates";
 import { listHomeUpdates } from "@/lib/home-updates";
-import { listPeopleToBuyFor } from "@/lib/people";
+import { listListsYouEdit, listPeopleToBuyFor } from "@/lib/people";
 import { ensurePersonalList } from "@/lib/lists";
 import { isProvisionedAdmin } from "@/lib/admin";
 import {
@@ -22,8 +22,9 @@ export default async function DashboardPage() {
   const myListId = await ensurePersonalList(user.id, user.display_name);
   const showAdmin = isProvisionedAdmin(user);
 
-  const [people, updates] = await Promise.all([
+  const [people, editing, updates] = await Promise.all([
     listPeopleToBuyFor(user.id),
+    listListsYouEdit(user.id),
     listHomeUpdates(user.id),
   ]);
 
@@ -172,6 +173,32 @@ export default async function DashboardPage() {
             </tbody>
           </table>
         )}
+
+        {editing.length > 0 ? (
+          <>
+            <h2
+              style={{
+                color: "var(--navy)",
+                marginTop: 28,
+                marginBottom: 4,
+                fontSize: 16,
+              }}
+            >
+              Lists you help edit{" "}
+              <span style={{ fontWeight: 400, fontSize: 13, color: "#444" }}>
+                add/change gifts — purchase status stays hidden.
+              </span>
+            </h2>
+            <ul style={{ margin: "6px 0 0 1.25rem", padding: 0, fontSize: 13 }}>
+              {editing.map((l) => (
+                <li key={l.list_id} style={{ margin: "2px 0" }}>
+                  <Link href={`/lists/${l.list_id}`}>{l.list_title}</Link>
+                  <span style={{ color: "#555" }}> — {l.owner_names}</span>
+                </li>
+              ))}
+            </ul>
+          </>
+        ) : null}
 
         {incoming.length > 0 ? (
           <>
