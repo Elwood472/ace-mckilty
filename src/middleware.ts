@@ -33,8 +33,45 @@ function stashTokenRedirect(
   return redirect;
 }
 
+/** Repo / tooling paths that must never be served as static files. */
+const BLOCKED_PREFIXES = [
+  "/scripts",
+  "/migrations",
+  "/src",
+  "/node_modules",
+  "/.git",
+  "/.data",
+];
+
+const BLOCKED_EXACT = new Set([
+  "/package.json",
+  "/package-lock.json",
+  "/tsconfig.json",
+  "/next.config.ts",
+  "/next.config.js",
+  "/eslint.config.mjs",
+  "/readme.md",
+  "/readme",
+  "/agents.md",
+  "/cursor-app.json",
+]);
+
+function isBlockedSourcePath(pathname: string): boolean {
+  const path = pathname.toLowerCase();
+  if (BLOCKED_EXACT.has(path)) return true;
+  return BLOCKED_PREFIXES.some(
+    (prefix) => path === prefix || path.startsWith(`${prefix}/`),
+  );
+}
+
 export function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
+
+  // Cursor App Hosting may expose uploaded files by path; refuse tooling/source.
+  if (isBlockedSourcePath(pathname)) {
+    return new NextResponse("Not found", { status: 404 });
+  }
+
   const csrf = request.cookies.get(CSRF_COOKIE)?.value || nanoid(32);
 
   // Email links land with ?token= once; stash into httpOnly cookie and strip

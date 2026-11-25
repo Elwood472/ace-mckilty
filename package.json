@@ -7,12 +7,7 @@
     "build": "next build && node scripts/migrate.mjs",
     "start": "next start",
     "lint": "eslint",
-    "migrate": "node scripts/migrate.mjs",
-    "db:export": "node scripts/export-pglite.mjs",
-    "db:filter-real": "node scripts/filter-dump-real-accounts.mjs",
-    "db:import": "node scripts/import-dump.mjs",
-    "smoke": "node scripts/smoke.mjs",
-    "smoke:full": "node scripts/full-smoke.mjs"
+    "migrate": "node scripts/migrate.mjs"
   },
   "dependencies": {
     "@electric-sql/pglite": "^0.5.16",
