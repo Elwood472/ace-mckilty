@@ -1,11 +1,15 @@
 import { headers } from "next/headers";
+import { checkRateLimit, type RateLimitOpts } from "@/lib/rate-limit";
 
 /**
  * Client IP for rate limiting.
  * Prefer proxy-set single-value headers; never trust the leftmost
  * X-Forwarded-For entry (clients can prepend spoofed addresses).
+ *
+ * Returns null when no recognizable IP is available — callers must not
+ * share a single "unknown" rate-limit bucket across those requests.
  */
-export async function getClientIp(): Promise<string> {
+export async function getClientIp(): Promise<string | null> {
   const h = await headers();
 
   for (const name of [
@@ -32,5 +36,18 @@ export async function getClientIp(): Promise<string> {
     if (last) return last.slice(0, 64);
   }
 
-  return "unknown";
+  return null;
+}
+
+/**
+ * Per-IP rate limit. Fails closed when IP cannot be determined (no shared
+ * fallback bucket that unrelated clients would collide in).
+ */
+export async function checkClientIpRateLimit(
+  keyPrefix: string,
+  opts?: RateLimitOpts,
+): Promise<boolean> {
+  const ip = await getClientIp();
+  if (!ip) return false;
+  return checkRateLimit(`${keyPrefix}:${ip}`, opts);
 }

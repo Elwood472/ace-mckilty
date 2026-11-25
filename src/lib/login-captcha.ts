@@ -11,7 +11,11 @@ export function signInFailKey(ip: string): string {
   return `signin-fail:${ip}`;
 }
 
-export async function loginCaptchaRequired(ip: string): Promise<boolean> {
+export async function loginCaptchaRequired(
+  ip: string | null,
+): Promise<boolean> {
+  // No IP → treat as already over the threshold (fail closed; no shared bucket).
+  if (!ip) return true;
   const fails = await getRateLimitHits(
     signInFailKey(ip),
     SIGNIN_FAIL_WINDOW_MS,

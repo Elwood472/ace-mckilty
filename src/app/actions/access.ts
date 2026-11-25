@@ -15,7 +15,7 @@ import {
 } from "@/lib/authz";
 import { ensurePersonalList, getPersonalListId } from "@/lib/lists";
 import { checkRateLimit } from "@/lib/rate-limit";
-import { getClientIp } from "@/lib/client-ip";
+import { checkClientIpRateLimit } from "@/lib/client-ip";
 import { absoluteAppUrl } from "@/lib/app-url";
 
 function s(fd: FormData, key: string): string {
@@ -47,13 +47,12 @@ export async function requestListAccessByEmail(
       return { error: "That's your own email." };
     }
 
-    const ip = await getClientIp();
     if (
       !(await checkRateLimit(`person-lookup:${user.id}`, {
         maxHits: 10,
         windowMs: 15 * 60 * 1000,
       })) ||
-      !(await checkRateLimit(`person-lookup-ip:${ip}`, {
+      !(await checkClientIpRateLimit("person-lookup-ip", {
         maxHits: 20,
         windowMs: 15 * 60 * 1000,
       })) ||
@@ -141,7 +140,6 @@ export async function createListEmailInvite(
       return { ok: "That person already has access to this list." };
     }
 
-    const ip = await getClientIp();
     // requireUser already mandates 2FA enrollment (legitimate activity gate).
     // Extra age gate: brand-new accounts cannot blast invites immediately.
     const age = await sql<{ created_at: string }>(
@@ -167,7 +165,7 @@ export async function createListEmailInvite(
       return { error: "Too many invites. Try again later." };
     }
     if (
-      !(await checkRateLimit(`create-invite-ip:${ip}`, {
+      !(await checkClientIpRateLimit("create-invite-ip", {
         maxHits: 8,
         windowMs: 15 * 60 * 1000,
       }))
@@ -183,7 +181,7 @@ export async function createListEmailInvite(
       return { error: "Too many emails from this account. Try again later." };
     }
     if (
-      !(await checkRateLimit(`outbound-email-ip:${ip}`, {
+      !(await checkClientIpRateLimit("outbound-email-ip", {
         maxHits: 20,
         windowMs: 60 * 60 * 1000,
       }))
@@ -362,7 +360,6 @@ export async function requestListAccess(
     );
     if (amOwner.length) return { error: "You already own this list." };
 
-    const ip = await getClientIp();
     if (
       !(await checkRateLimit(`access-req:${user.id}`, {
         maxHits: 8,
@@ -372,7 +369,7 @@ export async function requestListAccess(
       return { error: "Too many requests. Try again later." };
     }
     if (
-      !(await checkRateLimit(`access-req-ip:${ip}`, {
+      !(await checkClientIpRateLimit("access-req-ip", {
         maxHits: 12,
         windowMs: 15 * 60 * 1000,
       }))
@@ -388,7 +385,7 @@ export async function requestListAccess(
       return { error: "Too many emails from this account. Try again later." };
     }
     if (
-      !(await checkRateLimit(`outbound-email-ip:${ip}`, {
+      !(await checkClientIpRateLimit("outbound-email-ip", {
         maxHits: 20,
         windowMs: 60 * 60 * 1000,
       }))

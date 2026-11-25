@@ -238,7 +238,7 @@ async function verifyMathChallenge(
 
 async function verifyTurnstile(
   token: string,
-  ip: string,
+  ip: string | null,
 ): Promise<{ ok: true } | { ok: false; error: string }> {
   const secret = getTurnstileSecret();
   if (!secret) return { ok: false, error: "CAPTCHA is not configured." };
@@ -248,7 +248,7 @@ async function verifyTurnstile(
     const body = new URLSearchParams();
     body.set("secret", secret);
     body.set("response", token);
-    if (ip && ip !== "unknown") body.set("remoteip", ip);
+    if (ip) body.set("remoteip", ip);
 
     const res = await fetch(
       "https://challenges.cloudflare.com/turnstile/v0/siteverify",
@@ -280,7 +280,7 @@ async function verifyTurnstile(
  */
 export async function assertHuman(
   formData: FormData,
-  ip: string,
+  ip: string | null,
 ): Promise<{ ok: true } | { ok: false; error: string }> {
   const honey = formData.get("company_website");
   if (typeof honey === "string" && honey.trim() !== "") {

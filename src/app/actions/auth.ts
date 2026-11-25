@@ -8,7 +8,7 @@ import { bumpCounter, checkRateLimit, clearRateLimit } from "@/lib/rate-limit";
 import { assertCsrf } from "@/lib/csrf";
 import { createSession, destroySession } from "@/lib/session";
 import { safeInternalPath } from "@/lib/url-safety";
-import { getClientIp } from "@/lib/client-ip";
+import { checkClientIpRateLimit, getClientIp } from "@/lib/client-ip";
 import { assertHuman } from "@/lib/captcha";
 import { SIGNIN_FAIL_WINDOW, signInFailKey } from "@/lib/login-captcha";
 import { DISPLAY_NAME_MAX, sanitizePublicLabel } from "@/lib/text";
@@ -63,8 +63,9 @@ export async function signUp(
 
     // Cap account creation per IP (hourly + daily) and per email.
     // CAPTCHA/Turnstile already required via assertHuman above.
+    // Missing IP fails closed (no shared "unknown" bucket).
     if (
-      !(await checkRateLimit(`signup-ip:${ip}`, {
+      !(await checkClientIpRateLimit("signup-ip", {
         maxHits: 3,
         windowMs: 60 * 60 * 1000,
       }))
@@ -72,7 +73,7 @@ export async function signUp(
       return { error: "Too many attempts. Try again later." };
     }
     if (
-      !(await checkRateLimit(`signup-ip-day:${ip}`, {
+      !(await checkClientIpRateLimit("signup-ip-day", {
         maxHits: 6,
         windowMs: 24 * 60 * 60 * 1000,
       }))
@@ -159,7 +160,6 @@ export async function signIn(
   let needsTwoFactorSetup = false;
   try {
     const ip = await getClientIp();
-    const failKey = signInFailKey(ip);
     // Always require a human check on login (same bar as signup / reset).
     const human = await assertHuman(formData, ip);
     if (!human.ok) return { error: human.error };
@@ -173,6 +173,11 @@ export async function signIn(
 
     // Rate-limit by IP (and IP+email), never by email alone — otherwise an
     // attacker who knows an address can lock the real owner out.
+    // Missing IP fails closed (no shared "unknown" bucket).
+    if (!ip) {
+      return { error: "Too many attempts. Try again later." };
+    }
+    const failKey = signInFailKey(ip);
     if (
       !(await checkRateLimit(`signin-ip:${ip}`, {
         maxHits: 30,
@@ -279,9 +284,8 @@ export async function resendSignupVerificationAction(
   }
 
   try {
-    const ip = await getClientIp();
     if (
-      !(await checkRateLimit(`verify-resend-ip:${ip}`, {
+      !(await checkClientIpRateLimit("verify-resend-ip", {
         maxHits: 5,
         windowMs: 60 * 60 * 1000,
       }))

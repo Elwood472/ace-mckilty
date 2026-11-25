@@ -16,7 +16,7 @@ import { resolveSource } from "@/lib/source";
 import { autofillFromGiftUrl, type AutofillResult } from "@/lib/autofill";
 import { normalizeStoredHttpUrl } from "@/lib/url-safety";
 import { checkRateLimit } from "@/lib/rate-limit";
-import { getClientIp } from "@/lib/client-ip";
+import { checkClientIpRateLimit } from "@/lib/client-ip";
 
 function s(fd: FormData, key: string): string {
   const v = fd.get(key);
@@ -35,14 +35,14 @@ export async function autofillItemFromUrl(
     return { warning: "Invalid request. Refresh and try again." };
   }
   const user = await requireUser();
-  const ip = await getClientIp();
   // Per-user + per-IP only — no shared global that one account can burn for everyone.
+  // Missing IP fails closed (no shared "unknown" bucket).
   if (
     !(await checkRateLimit(`autofill:${user.id}`, {
       maxHits: 8,
       windowMs: 15 * 60 * 1000,
     })) ||
-    !(await checkRateLimit(`autofill-ip:${ip}`, {
+    !(await checkClientIpRateLimit("autofill-ip", {
       maxHits: 20,
       windowMs: 15 * 60 * 1000,
     })) ||

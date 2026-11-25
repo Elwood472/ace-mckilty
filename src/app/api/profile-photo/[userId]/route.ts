@@ -4,6 +4,7 @@ import {
   getProfilePhoto,
   isUserId,
 } from "@/lib/profile-photo";
+import { getUserTwoFactor, userNeedsTwoFactor } from "@/lib/two-factor";
 
 type Params = { params: Promise<{ userId: string }> };
 
@@ -17,6 +18,13 @@ export async function GET(_request: Request, { params }: Params) {
   if (!viewer) {
     return new Response("Unauthorized", { status: 401 });
   }
+
+  // Same mandatory 2FA enrollment as pages / server actions (API cannot redirect).
+  const flags = await getUserTwoFactor(viewer.id);
+  if (!flags || !userNeedsTwoFactor(flags)) {
+    return new Response("Unauthorized", { status: 401 });
+  }
+
   if (!(await canViewProfilePhoto(viewer.id, userId))) {
     return new Response("Not found", { status: 404 });
   }

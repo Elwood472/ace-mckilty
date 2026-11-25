@@ -4,9 +4,8 @@ import { redirect } from "next/navigation";
 import QRCode from "qrcode";
 import { assertCsrf } from "@/lib/csrf";
 import { sql } from "@/lib/db";
-import { getClientIp } from "@/lib/client-ip";
+import { checkClientIpRateLimit } from "@/lib/client-ip";
 import { verifyPassword } from "@/lib/password";
-import { checkRateLimit } from "@/lib/rate-limit";
 import { createSession, requireUser } from "@/lib/session";
 import { generateTotpSecret, totpUri, verifyTotpCode } from "@/lib/totp";
 import {
@@ -44,9 +43,8 @@ export async function verifyTwoFactorLogin(
   let nextPath = "/dashboard";
   let ok = false;
   try {
-    const ip = await getClientIp();
     if (
-      !(await checkRateLimit(`2fa-verify:${ip}`, {
+      !(await checkClientIpRateLimit("2fa-verify", {
         maxHits: 20,
         windowMs: 15 * 60 * 1000,
       }))
@@ -99,9 +97,8 @@ export async function resendTwoFactorEmail(
   }
 
   try {
-    const ip = await getClientIp();
     if (
-      !(await checkRateLimit(`2fa-resend:${ip}`, {
+      !(await checkClientIpRateLimit("2fa-resend", {
         maxHits: 5,
         windowMs: 15 * 60 * 1000,
       }))

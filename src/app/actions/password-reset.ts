@@ -3,7 +3,7 @@
 import { redirect } from "next/navigation";
 import { z } from "zod";
 import { assertHuman } from "@/lib/captcha";
-import { getClientIp } from "@/lib/client-ip";
+import { checkClientIpRateLimit, getClientIp } from "@/lib/client-ip";
 import { assertCsrf } from "@/lib/csrf";
 import {
   clearResetTokenCookie,
@@ -42,7 +42,7 @@ export async function requestPasswordResetAction(
     if (!human.ok) return { error: human.error };
 
     if (
-      !(await checkRateLimit(`pw-reset-ip:${ip}`, {
+      !(await checkClientIpRateLimit("pw-reset-ip", {
         maxHits: 5,
         windowMs: 60 * 60 * 1000,
       }))
@@ -96,7 +96,7 @@ export async function completePasswordResetAction(
     if (!human.ok) return { error: human.error };
 
     if (
-      !(await checkRateLimit(`pw-reset-complete:${ip}`, {
+      !(await checkClientIpRateLimit("pw-reset-complete", {
         maxHits: 10,
         windowMs: 60 * 60 * 1000,
       }))
