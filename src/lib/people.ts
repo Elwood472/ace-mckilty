@@ -14,7 +14,7 @@ export type BuyForPerson = {
   days_until_birthday: number | null;
 };
 
-/** People whose personal lists you have been granted access to. */
+/** People whose personal lists you can shop (viewer access, not editor). */
 export async function listPeopleToBuyFor(
   viewerId: string,
 ): Promise<BuyForPerson[]> {
@@ -35,6 +35,7 @@ export async function listPeopleToBuyFor(
      join wish_list_owners o on o.list_id = l.id
      join users u on u.id = o.user_id
      where a.user_id = $1
+       and a.role = 'viewer'
        and o.user_id <> $1`,
     [viewerId],
   );
@@ -83,54 +84,61 @@ export async function listPeopleToBuyFor(
   return enriched;
 }
 
-export type PeopleSearchHit = {
-  id: string;
-  display_name: string;
-  email: string;
-  personal_list_id: string | null;
-  has_access: boolean;
-  pending_request: boolean;
+export type EditableList = {
+  list_id: string;
+  list_title: string;
+  owner_names: string;
 };
 
-export async function searchPeople(
-  viewerId: string,
-  query: string,
-): Promise<PeopleSearchHit[]> {
-  const q = query.trim();
-  if (q.length < 2) return [];
-  const rows = await sql<{
-    id: string;
-    display_name: string;
-    email: string;
-    personal_list_id: string | null;
-    has_access: boolean;
-    pending_request: boolean;
-  }>(
-    `select u.id, u.display_name, u.email,
-            (
-              select l.id from wish_lists l
-              join wish_list_owners o on o.list_id = l.id
-              where o.user_id = u.id and l.list_type = 'personal'
-              order by l.created_at asc limit 1
-            ) as personal_list_id,
-            exists(
-              select 1 from list_access a
-              join wish_lists l on l.id = a.list_id and l.list_type = 'personal'
-              join wish_list_owners o on o.list_id = l.id and o.user_id = u.id
-              where a.user_id = $1
-            ) as has_access,
-            exists(
-              select 1 from list_access_requests r
-              join wish_lists l on l.id = r.list_id and l.list_type = 'personal'
-              join wish_list_owners o on o.list_id = l.id and o.user_id = u.id
-              where r.requester_id = $1 and r.status = 'pending'
-            ) as pending_request
-     from users u
-     where u.id <> $1
-       and (u.display_name ilike $2 or u.email ilike $2)
-     order by u.display_name
-     limit 20`,
-    [viewerId, `%${q}%`],
+/** Lists where you are an editor (manage gifts; purchase status stays hidden). */
+export async function listListsYouEdit(
+  userId: string,
+): Promise<EditableList[]> {
+  return sql<EditableList>(
+    `select l.id as list_id,
+            l.title as list_title,
+            string_agg(u.display_name, ', ' order by u.display_name) as owner_names
+     from list_access a
+     join wish_lists l on l.id = a.list_id
+     join wish_list_owners o on o.list_id = l.id
+     join users u on u.id = o.user_id
+     where a.user_id = $1
+       and a.role = 'editor'
+     group by l.id, l.title
+     order by lower(l.title)`,
+    [userId],
   );
-  return rows;
+}
+
+/**
+ * True when the two users already share list access or co-ownership.
+ * Pending access requests do NOT count (cannot force co-ownership).
+ */
+export async function arePeopleRelated(
+  viewerId: string,
+  otherId: string,
+): Promise<boolean> {
+  if (viewerId === otherId) return true;
+  const rows = await sql(
+    `select 1 where exists (
+       -- viewer can see other's personal list
+       select 1 from list_access a
+       join wish_lists l on l.id = a.list_id and l.list_type = 'personal'
+       join wish_list_owners o on o.list_id = l.id and o.user_id = $2
+       where a.user_id = $1
+     ) or exists (
+       -- other can see viewer's personal list
+       select 1 from list_access a
+       join wish_lists l on l.id = a.list_id and l.list_type = 'personal'
+       join wish_list_owners o on o.list_id = l.id and o.user_id = $1
+       where a.user_id = $2
+     ) or exists (
+       -- co-owners on any list
+       select 1 from wish_list_owners a
+       join wish_list_owners b on b.list_id = a.list_id and b.user_id = $2
+       where a.user_id = $1
+     )`,
+    [viewerId, otherId],
+  );
+  return rows.length > 0;
 }

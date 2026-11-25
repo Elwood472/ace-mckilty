@@ -1,10 +1,11 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useEffect, useState } from "react";
 import {
   createListEmailInvite,
   decideAccessRequest,
   revokeListAccess,
+  updateListAccessRole,
   type ActionState,
 } from "@/app/actions/access";
 import { CsrfField } from "@/components/csrf-field";
@@ -20,11 +21,21 @@ export function InviteForm({
   listId: string;
 }) {
   const [state, action, pending] = useActionState(createListEmailInvite, initial);
+  const [flash, setFlash] = useState<{ ok?: string; error?: string }>({});
+  useEffect(() => {
+    if (state.ok) setFlash({ ok: state.ok });
+    else if (state.error) setFlash({ error: state.error });
+  }, [state.ok, state.error]);
+
   return (
-    <form action={action} className="space-y-2">
+    <form
+      action={action}
+      className="space-y-2"
+      onSubmit={() => setFlash({})}
+    >
       <CsrfField token={csrf} />
       <input type="hidden" name="listId" value={listId} />
-      <Flash error={state.error} ok={state.ok} />
+      <Flash error={flash.error} ok={flash.ok} />
       <label className="label" htmlFor="email">
         Email invite
       </label>
@@ -40,8 +51,8 @@ export function InviteForm({
         {pending ? "Sending…" : "Email invite link"}
       </button>
       <p style={{ fontSize: 12, color: "#555", margin: 0 }}>
-        Emails an invite link when <code>RESEND_API_KEY</code> is set; otherwise
-        the invite link is shown here.
+        Sends an email with an invite link. If it doesn&apos;t arrive, check spam
+        — the open invite also appears in the list below.
       </p>
     </form>
   );
@@ -97,6 +108,45 @@ export function RevokeAccessForm({
         Revoke
       </button>
       <Flash error={state.error} />
+    </form>
+  );
+}
+
+export function SetAccessRoleForm({
+  csrf,
+  listId,
+  userId,
+  role,
+}: {
+  csrf: string;
+  listId: string;
+  userId: string;
+  role: "viewer" | "editor";
+}) {
+  const [state, action, pending] = useActionState(updateListAccessRole, initial);
+  const nextRole = role === "editor" ? "viewer" : "editor";
+  const label =
+    role === "editor" ? "Make shopper" : "Allow edit gifts";
+  return (
+    <form action={action} style={{ display: "inline" }}>
+      <CsrfField token={csrf} />
+      <input type="hidden" name="listId" value={listId} />
+      <input type="hidden" name="userId" value={userId} />
+      <input type="hidden" name="role" value={nextRole} />
+      <button
+        type="submit"
+        className="text-xs font-semibold"
+        style={{ color: "var(--navy)" }}
+        disabled={pending}
+        title={
+          nextRole === "editor"
+            ? "They can add/edit/remove gifts; purchase status stays hidden from them"
+            : "They can shop again and will see purchase status; they can no longer edit gifts"
+        }
+      >
+        {pending ? "…" : label}
+      </button>
+      <Flash error={state.error} ok={state.ok} />
     </form>
   );
 }

@@ -1,12 +1,19 @@
 import Link from "next/link";
 import type { User } from "@/lib/types";
 import { signOut } from "@/app/actions/auth";
+import { CsrfField } from "@/components/csrf-field";
+import { QuietWaves } from "@/components/quiet-waves";
+import { ensureCsrfToken } from "@/lib/csrf";
+import { pickHeaderBanner } from "@/lib/header-banner";
 
 /**
  * Gift Registry chrome under Ace McKilty.
  * Brand mark links to the public hub (`/`); Gift Registry home is `/gifts` or `/dashboard`.
+ *
+ * Header art: small transparent cutout on the header/page border.
+ * Random from the default pool; holiday sets override when they have images.
  */
-export function SiteHeader({
+export async function SiteHeader({
   user,
   app = "gifts",
 }: {
@@ -15,13 +22,16 @@ export function SiteHeader({
   app?: "gifts";
 }) {
   const giftsHome = user ? "/dashboard" : "/gifts";
+  const csrf = user ? await ensureCsrfToken() : "";
+  const banner = pickHeaderBanner();
 
   return (
-    <header className="site-header">
-      <table cellPadding={0} cellSpacing={0} width="100%">
-        <tbody>
-          <tr>
-            <td valign="middle" style={{ width: 48 }}>
+    <>
+      <QuietWaves />
+      <header className="site-header">
+        <div className="site-header-row">
+          <div className="site-header-left">
+            <div className="site-header-brand">
               <Link
                 href="/"
                 aria-label="Ace McKilty home"
@@ -32,7 +42,7 @@ export function SiteHeader({
                   style={{
                     width: 40,
                     height: 40,
-                    background: "#000080",
+                    background: "var(--navy)",
                     border: "1px solid #000",
                     color: "#fff",
                     fontWeight: 700,
@@ -44,8 +54,6 @@ export function SiteHeader({
                   AM
                 </div>
               </Link>
-            </td>
-            <td valign="middle">
               <div style={{ lineHeight: 1.2 }}>
                 <Link
                   href="/"
@@ -60,7 +68,7 @@ export function SiteHeader({
                     style={{
                       fontSize: 13,
                       fontWeight: 700,
-                      color: "#000080",
+                      color: "var(--navy)",
                       textDecoration: "none",
                     }}
                   >
@@ -68,43 +76,81 @@ export function SiteHeader({
                   </Link>
                 ) : null}
               </div>
-            </td>
-            <td valign="middle" align="right">
-              {user ? (
-                <span style={{ fontSize: 12 }}>
-                  {user.display_name}
-                  {" · "}
-                  <Link href="/">Site</Link>
-                  {" · "}
-                  <Link href="/dashboard">Home</Link>
-                  {" · "}
-                  <Link href="/faq">FAQ</Link>
-                  {" · "}
-                  <form action={signOut} style={{ display: "inline" }}>
-                    <button
-                      type="submit"
-                      className="btn"
-                      style={{ marginLeft: 4 }}
-                    >
-                      Log Out
-                    </button>
-                  </form>
-                </span>
-              ) : (
-                <span style={{ fontSize: 12 }}>
-                  <Link href="/">Site</Link>
-                  {" · "}
-                  <Link href="/faq">FAQ</Link>
-                  {" · "}
-                  <Link href="/login">Sign in</Link>
-                  {" · "}
-                  <Link href="/signup">Create account</Link>
-                </span>
-              )}
-            </td>
-          </tr>
-        </tbody>
-      </table>
-    </header>
+            </div>
+
+            <div
+              className="site-header-banner"
+              aria-hidden="true"
+              style={{
+                marginLeft: "9.5rem",
+                width: 160,
+                height: 72,
+                maxHeight: 72,
+                overflow: "hidden",
+                display: "flex",
+                alignItems: "flex-end",
+                justifyContent: "flex-start",
+                pointerEvents: "none",
+                flexShrink: 0,
+              }}
+            >
+              {/* Hard size caps — must not depend on CSS bundle alone */}
+              <img
+                src={banner.src}
+                alt=""
+                width={160}
+                height={72}
+                style={{
+                  display: "block",
+                  maxWidth: "100%",
+                  maxHeight: 72,
+                  width: "auto",
+                  height: "auto",
+                  objectFit: "contain",
+                  objectPosition: "left bottom",
+                }}
+              />
+            </div>
+          </div>
+
+          <div className="site-header-nav">
+            {user ? (
+              <span>
+                <b>{user.display_name}</b>
+                {" · "}
+                <Link href="/">Site</Link>
+                {" · "}
+                <Link href="/dashboard">Home</Link>
+                {" · "}
+                <Link href="/profile/security">Security</Link>
+                {" · "}
+                <Link href="/faq">FAQ</Link>
+                {" · "}
+                <form action={signOut} style={{ display: "inline" }}>
+                  <CsrfField token={csrf} />
+                  <button
+                    type="submit"
+                    className="btn"
+                    style={{ marginLeft: 4 }}
+                  >
+                    Log Out
+                  </button>
+                </form>
+              </span>
+            ) : (
+              <span>
+                <Link href="/">Site</Link>
+                {" · "}
+                <Link href="/faq">FAQ</Link>
+                {" · "}
+                <Link href="/login">Sign in</Link>
+                {" · "}
+                <Link href="/signup">Create account</Link>
+              </span>
+            )}
+          </div>
+        </div>
+      </header>
+    </>
   );
 }

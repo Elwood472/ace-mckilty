@@ -1,7 +1,13 @@
 "use client";
 
 import Link from "next/link";
-import { useActionState, useEffect, useRef, useState } from "react";
+import {
+  Fragment,
+  useActionState,
+  useEffect,
+  useRef,
+  useState,
+} from "react";
 import {
   autofillItemFromUrl,
   createItem,
@@ -15,8 +21,62 @@ import type { Item } from "@/lib/types";
 import { CsrfField } from "@/components/csrf-field";
 import { Flash } from "@/components/flash";
 import type { ItemView, SortDir, SortKey } from "@/lib/types";
+import { safeExternalHref } from "@/lib/url-safety";
 
 const initial: ActionState = {};
+
+function GiftThumb({ src }: { src: string }) {
+  const ref = useRef<HTMLImageElement>(null);
+  const [preview, setPreview] = useState<{ top: number; left: number } | null>(
+    null,
+  );
+
+  function placePreview() {
+    const el = ref.current;
+    if (!el) return;
+    const r = el.getBoundingClientRect();
+    const maxW = Math.min(360, window.innerWidth * 0.7);
+    const maxH = Math.min(360, window.innerHeight * 0.7);
+    let left = r.right + 12;
+    let top = r.top;
+    if (left + maxW > window.innerWidth - 8) left = r.left - maxW - 12;
+    if (left < 8) left = 8;
+    if (top + maxH > window.innerHeight - 8) {
+      top = Math.max(8, window.innerHeight - maxH - 8);
+    }
+    if (top < 8) top = 8;
+    setPreview({ top, left });
+  }
+
+  return (
+    <>
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img
+        ref={ref}
+        src={src}
+        alt=""
+        width={64}
+        height={64}
+        className="gift-thumb"
+        tabIndex={0}
+        onMouseEnter={placePreview}
+        onMouseLeave={() => setPreview(null)}
+        onFocus={placePreview}
+        onBlur={() => setPreview(null)}
+      />
+      {preview ? (
+        <div
+          className="gift-thumb-preview"
+          style={{ top: preview.top, left: preview.left }}
+          aria-hidden
+        >
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src={src} alt="" />
+        </div>
+      ) : null}
+    </>
+  );
+}
 
 export function ListFilters({
   
@@ -155,14 +215,18 @@ function SortHeader({
 
 export function ItemTable({
   items,
-  owner,
+  canEdit,
+  hidePurchases,
   csrf,
   listId,
   sort,
   dir,
 }: {
   items: ItemView[];
-  owner: boolean;
+  /** Owner or editor — show add/edit/remove. */
+  canEdit: boolean;
+  /** Owner or editor — never show purchase / taken UI. */
+  hidePurchases: boolean;
   csrf: string;
   listId: string;
   sort: SortKey;
@@ -172,7 +236,7 @@ export function ItemTable({
     return (
       <p className="p-6 text-muted">
         No items match these filters
-        {owner ? (
+        {canEdit ? (
           <>
             {" — "}
             <Link href={`/lists/${listId}/add`}>add a gift</Link>.
@@ -219,15 +283,30 @@ export function ItemTable({
           </tr>
         </thead>
         <tbody>
-          {items.map((item) => (
-            <ItemRow
-              key={item.id}
-              item={item}
-              owner={owner}
-              csrf={csrf}
-              listId={listId}
-            />
-          ))}
+          {items.map((item, index) => {
+            const catLabel = item.category?.trim() || "Uncategorized";
+            const prevLabel =
+              index === 0
+                ? null
+                : items[index - 1].category?.trim() || "Uncategorized";
+            const showCategoryBreak = index === 0 || catLabel !== prevLabel;
+            return (
+              <Fragment key={item.id}>
+                {showCategoryBreak ? (
+                  <tr className="category-section">
+                    <td colSpan={7}>{catLabel}</td>
+                  </tr>
+                ) : null}
+                <ItemRow
+                  item={item}
+                  canEdit={canEdit}
+                  hidePurchases={hidePurchases}
+                  csrf={csrf}
+                  listId={listId}
+                />
+              </Fragment>
+            );
+          })}
         </tbody>
       </table>
     </div>
@@ -236,12 +315,14 @@ export function ItemTable({
 
 function ItemRow({
   item,
-  owner,
+  canEdit,
+  hidePurchases,
   csrf,
   listId,
 }: {
   item: ItemView;
-  owner: boolean;
+  canEdit: boolean;
+  hidePurchases: boolean;
   csrf: string;
   listId: string;
 }) {
@@ -261,7 +342,7 @@ function ItemRow({
   const qtyLabel =
     item.quantity == null
       ? "Unlimited"
-      : owner
+      : hidePurchases
         ? String(item.quantity)
         : `${item.remaining ?? 0} left / ${item.quantity}`;
 
@@ -270,25 +351,18 @@ function ItemRow({
       className={[
         "row-hover border-b border-[rgba(20,53,44,0.08)] align-top",
         item.restricted ? "restricted-cue" : "",
-        !owner && item.is_taken ? "taken-row" : "",
+        !hidePurchases && item.is_taken ? "taken-row" : "",
       ].join(" ")}
     >
       <td className="px-4 py-3">
         <div className="flex gap-3">
-          {item.image_url ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img
-              src={item.image_url}
-              alt=""
-              width={64}
-              height={64}
-              className="h-16 w-16 rounded-md object-cover"
-            />
+          {safeExternalHref(item.image_url) ? (
+            <GiftThumb src={safeExternalHref(item.image_url)!} />
           ) : null}
           <div>
-            {item.url ? (
+            {safeExternalHref(item.url) ? (
               <a
-                href={item.url}
+                href={safeExternalHref(item.url)!}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="font-semibold text-pine underline-offset-2 hover:underline"
@@ -304,7 +378,7 @@ function ItemRow({
             {item.restricted ? (
               <p className="mt-1 text-xs font-semibold text-restricted">
                 Restricted
-                {owner && item.viewer_names
+                {canEdit && item.viewer_names
                   ? ` · visible to ${item.viewer_names.join(", ") || "nobody yet"}`
                   : ""}
               </p>
@@ -320,7 +394,7 @@ function ItemRow({
       <td className="px-4 py-3">{qtyLabel}</td>
       <td className="px-4 py-3 text-muted">{item.display_date ?? "—"}</td>
       <td className="px-4 py-3">
-        {owner ? (
+        {canEdit ? (
           <div className="space-y-1">
             <div>
               <Link
@@ -349,7 +423,7 @@ function ItemRow({
           <form action={unpurchaseAction} className="space-y-1">
             <CsrfField token={csrf} />
             <input type="hidden" name="itemId" value={item.id} />
-            <p className="taken-text">You marked this</p>
+            <p className="taken-text">You marked this bought</p>
             <button
               type="submit"
               className="text-xs font-semibold text-pine underline"
@@ -444,7 +518,7 @@ export function AddItemForm({
     setAutofillPending(true);
     setAutofillMsg(undefined);
     try {
-      const result = await autofillItemFromUrl(url);
+      const result = await autofillItemFromUrl(url, csrf);
       if (result.title) setTitle(result.title);
       if (result.price) setPrice(result.price);
       if (result.source) setSource(result.source);
@@ -722,7 +796,7 @@ export function EditItemForm({
     setAutofillPending(true);
     setAutofillMsg(undefined);
     try {
-      const result = await autofillItemFromUrl(url);
+      const result = await autofillItemFromUrl(url, csrf);
       if (result.title) setTitle(result.title);
       if (result.price) setPrice(result.price);
       if (result.source) setSource(result.source);

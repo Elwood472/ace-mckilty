@@ -23,10 +23,22 @@ export async function sendEmail(opts: {
     "Ace McKilty Gift Registry <onboarding@resend.dev>";
 
   if (!apiKey) {
+    // Do not log recipient, subject, or body (invite tokens / PII).
+    const hosted = !!process.env.DATABASE_URL?.trim();
+    if (hosted) {
+      // Hosted Postgres must not pretend mail succeeded — callers treat ok
+      // as delivered (invites, resets, access requests, 2FA codes).
+      console.warn(
+        "[email] RESEND_API_KEY unset on hosted deploy — email not sent.",
+      );
+      return {
+        ok: false,
+        mode: "stub",
+        error: "Email is not configured. Bind RESEND_API_KEY and try again.",
+      };
+    }
     console.info(
-      "[email:stub] RESEND_API_KEY unset — email not sent.\n" +
-        `  to: ${opts.to}\n  subject: ${opts.subject}\n  body:\n${opts.text}\n` +
-        "  Bind secret RESEND_API_KEY (and optional EMAIL_FROM) for live mail.",
+      "[email:stub] RESEND_API_KEY unset — email not sent. Bind RESEND_API_KEY for live mail.",
     );
     return { ok: true, mode: "stub" };
   }
@@ -75,19 +87,26 @@ function escapeHtml(s: string): string {
 }
 
 export function inviteEmailBody(opts: {
-  listTitle: string;
-  inviterName: string;
+  /** Sanitized owner display name(s), e.g. "Alex". */
+  listOwnerLabel: string;
   inviteUrl: string;
 }): { subject: string; text: string; html: string } {
-  const subject = `You're invited to view ${opts.listTitle} on Ace McKilty Gift Registry`;
+  // Owner label must already be sanitized/capped by the caller.
+  const label = opts.listOwnerLabel.trim();
+  const named = label
+    ? `a wish list (${label})`
+    : "a wish list";
+  const subject = label
+    ? `Wish list invite (${label}) on Ace McKilty Gift Registry`
+    : "Wish list invite on Ace McKilty Gift Registry";
+  const lead = `You've been invited to view ${named} on Ace McKilty Gift Registry.`;
   const text =
-    `${opts.inviterName} invited you to view “${opts.listTitle}” on Ace McKilty Gift Registry.\n\n` +
+    `${lead}\n\n` +
     `Open this invite link to get access:\n${opts.inviteUrl}\n\n` +
     `If you don't have an account yet, create one with this same email, then open the link again.`;
   const html = `
     <div style="font-family:Arial,Helvetica,sans-serif;font-size:14px;color:#111">
-      <p><b>${escapeHtml(opts.inviterName)}</b> invited you to view
-      “${escapeHtml(opts.listTitle)}” on Ace McKilty Gift Registry.</p>
+      <p>${escapeHtml(lead)}</p>
       <p><a href="${escapeHtml(opts.inviteUrl)}"
         style="display:inline-block;background:#000080;color:#fff;padding:10px 16px;text-decoration:none;font-weight:700">
         Accept invite
@@ -104,15 +123,17 @@ export function accessRequestEmailBody(opts: {
   requesterEmail: string;
   reviewUrl: string;
 }): { subject: string; text: string; html: string } {
-  const subject = `${opts.requesterName} requested access to ${opts.listTitle}`;
+  // Fixed copy only — no attacker-controlled names/titles in outbound mail.
+  void opts.listTitle;
+  void opts.requesterName;
+  void opts.requesterEmail;
+  const subject = "Access request on Ace McKilty Gift Registry";
   const text =
-    `${opts.requesterName} (${opts.requesterEmail}) requested access to “${opts.listTitle}” on Ace McKilty Gift Registry.\n\n` +
+    `Someone requested access to a wish list on Ace McKilty Gift Registry.\n\n` +
     `Review and approve or deny the request:\n${opts.reviewUrl}\n`;
   const html = `
     <div style="font-family:Arial,Helvetica,sans-serif;font-size:14px;color:#111">
-      <p><b>${escapeHtml(opts.requesterName)}</b>
-      (${escapeHtml(opts.requesterEmail)}) requested access to
-      “${escapeHtml(opts.listTitle)}” on Ace McKilty Gift Registry.</p>
+      <p>Someone requested access to a wish list on Ace McKilty Gift Registry.</p>
       <p><a href="${escapeHtml(opts.reviewUrl)}"
         style="display:inline-block;background:#000080;color:#fff;padding:10px 16px;text-decoration:none;font-weight:700">
         Review request

@@ -3,6 +3,8 @@ export type User = {
   email: string;
   display_name: string;
   created_at: string;
+  /** Set only by operator grant / CLI — never by open signup. */
+  is_operator: boolean;
 };
 
 export type WishList = {

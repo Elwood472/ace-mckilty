@@ -2,17 +2,21 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
+import { touchLastActive } from "@/lib/activity";
 import { sql, withTransaction } from "@/lib/db";
 import { assertCsrf } from "@/lib/csrf";
 import { requireUser } from "@/lib/session";
 import {
-  getListOwnerIds,
-  isListOwner,
-  requireListOwner,
+  filterListAccessViewerIds,
+  hidesPurchaseSpoilers,
+  requireCanEditListItems,
   requireListViewer,
 } from "@/lib/authz";
 import { resolveSource } from "@/lib/source";
 import { autofillFromGiftUrl, type AutofillResult } from "@/lib/autofill";
+import { normalizeStoredHttpUrl } from "@/lib/url-safety";
+import { checkRateLimit } from "@/lib/rate-limit";
+import { checkClientIpRateLimit } from "@/lib/client-ip";
 
 function s(fd: FormData, key: string): string {
   const v = fd.get(key);
@@ -23,8 +27,32 @@ export type ActionState = { error?: string; ok?: string };
 
 export async function autofillItemFromUrl(
   url: string,
+  csrf?: string,
 ): Promise<AutofillResult> {
-  await requireUser();
+  try {
+    await assertCsrf(csrf ?? null);
+  } catch {
+    return { warning: "Invalid request. Refresh and try again." };
+  }
+  const user = await requireUser();
+  // Per-user + per-IP only — no shared global that one account can burn for everyone.
+  // Missing IP fails closed (no shared "unknown" bucket).
+  if (
+    !(await checkRateLimit(`autofill:${user.id}`, {
+      maxHits: 8,
+      windowMs: 15 * 60 * 1000,
+    })) ||
+    !(await checkClientIpRateLimit("autofill-ip", {
+      maxHits: 20,
+      windowMs: 15 * 60 * 1000,
+    })) ||
+    !(await checkRateLimit(`autofill-day:${user.id}`, {
+      maxHits: 40,
+      windowMs: 24 * 60 * 60 * 1000,
+    }))
+  ) {
+    return { warning: "Too many auto-fill attempts. Try again later." };
+  }
   return autofillFromGiftUrl(url);
 }
 
@@ -47,16 +75,24 @@ export async function createItem(
     await assertCsrf(formData.get("csrf"));
     const user = await requireUser();
     const listId = s(formData, "listId");
-    await requireListOwner(listId, user.id);
+    await requireCanEditListItems(listId, user.id);
 
     const title = s(formData, "title");
     if (!title) return { error: "Title is required." };
 
     const notes = s(formData, "notes");
-    const url = s(formData, "url");
+    const urlRaw = s(formData, "url");
+    const url = normalizeStoredHttpUrl(urlRaw);
+    if (urlRaw && !url) {
+      return { error: "Gift link must be a full http(s) URL." };
+    }
     const category = s(formData, "category");
     const source = resolveSource(s(formData, "source"), url);
-    const imageUrl = s(formData, "imageUrl");
+    const imageUrlRaw = s(formData, "imageUrl");
+    const imageUrl = normalizeStoredHttpUrl(imageUrlRaw);
+    if (imageUrlRaw && !imageUrl) {
+      return { error: "Image URL must be a full http(s) URL." };
+    }
     const displayDate = s(formData, "displayDate") || null;
     const priceRaw = s(formData, "price");
     const qtyMode = s(formData, "qtyMode");
@@ -105,7 +141,8 @@ export async function createItem(
     );
 
     if (restricted) {
-      for (const vid of viewerIds) {
+      const allowed = await filterListAccessViewerIds(listId, viewerIds);
+      for (const vid of allowed) {
         await sql(
           `insert into item_viewers (item_id, user_id) values ($1, $2)
            on conflict do nothing`,
@@ -114,6 +151,7 @@ export async function createItem(
       }
     }
 
+    await touchLastActive(user.id);
     await revalidateList(listId);
     return { ok: "Item added." };
   } catch (e) {
@@ -142,15 +180,23 @@ export async function updateItem(
     );
     if (!items.length) return { error: "Item not found." };
     listId = items[0].list_id;
-    await requireListOwner(listId, user.id);
+    await requireCanEditListItems(listId, user.id);
 
     const title = s(formData, "title");
     if (!title) return { error: "Title is required." };
     const notes = s(formData, "notes");
-    const url = s(formData, "url");
+    const urlRaw = s(formData, "url");
+    const url = normalizeStoredHttpUrl(urlRaw);
+    if (urlRaw && !url) {
+      return { error: "Gift link must be a full http(s) URL." };
+    }
     const category = s(formData, "category");
     const source = resolveSource(s(formData, "source"), url);
-    const imageUrl = s(formData, "imageUrl");
+    const imageUrlRaw = s(formData, "imageUrl");
+    const imageUrl = normalizeStoredHttpUrl(imageUrlRaw);
+    if (imageUrlRaw && !imageUrl) {
+      return { error: "Image URL must be a full http(s) URL." };
+    }
     const displayDate = s(formData, "displayDate") || null;
     const priceRaw = s(formData, "price");
     const qtyMode = s(formData, "qtyMode");
@@ -199,7 +245,8 @@ export async function updateItem(
 
     await sql("delete from item_viewers where item_id = $1", [itemId]);
     if (restricted) {
-      for (const vid of viewerIds) {
+      const allowed = await filterListAccessViewerIds(listId, viewerIds);
+      for (const vid of allowed) {
         await sql(
           `insert into item_viewers (item_id, user_id) values ($1, $2)
            on conflict do nothing`,
@@ -208,6 +255,7 @@ export async function updateItem(
       }
     }
 
+    await touchLastActive(user.id);
     await revalidateItemEdit(listId, itemId);
   } catch {
     return { error: "Could not update item." };
@@ -228,12 +276,13 @@ export async function deleteItem(
       [itemId],
     );
     if (!items.length) return { error: "Item not found." };
-    await requireListOwner(items[0].list_id, user.id);
+    await requireCanEditListItems(items[0].list_id, user.id);
     await sql(
       `update items set deleted = true, deleted_at = now(), updated_at = now()
        where id = $1`,
       [itemId],
     );
+    await touchLastActive(user.id);
     await revalidateList(items[0].list_id);
     revalidatePath("/removed");
     return { ok: "Item removed (can put back from Removed)." };
@@ -255,12 +304,13 @@ export async function restoreItem(
       [itemId],
     );
     if (!items.length) return { error: "Item not found." };
-    await requireListOwner(items[0].list_id, user.id);
+    await requireCanEditListItems(items[0].list_id, user.id);
     await sql(
       `update items set deleted = false, deleted_at = null, updated_at = now()
        where id = $1`,
       [itemId],
     );
+    await touchLastActive(user.id);
     await revalidateList(items[0].list_id);
     revalidatePath("/removed");
     return { ok: "Put back on your list." };
@@ -282,11 +332,12 @@ export async function purgeRemovedItem(
       [itemId],
     );
     if (!items.length) return { error: "Item not found." };
-    await requireListOwner(items[0].list_id, user.id);
+    await requireCanEditListItems(items[0].list_id, user.id);
     await sql(
       `update items set user_purged = true, updated_at = now() where id = $1`,
       [itemId],
     );
+    await touchLastActive(user.id);
     revalidatePath("/removed");
     return { ok: "Purged from removed list." };
   } catch {
@@ -309,10 +360,36 @@ export async function purgeBoughtItem(
       [purchaseId, user.id],
     );
     if (!rows.length) return { error: "Not your purchase." };
+    await touchLastActive(user.id);
     revalidatePath("/bought");
     return { ok: "Cleared from gifts you bought." };
   } catch {
     return { error: "Could not purge." };
+  }
+}
+
+/** Buyer-only: track whether you physically received a gift you marked bought. */
+export async function setBoughtReceived(
+  _prev: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  try {
+    await assertCsrf(formData.get("csrf"));
+    const user = await requireUser();
+    const purchaseId = s(formData, "purchaseId");
+    const received = s(formData, "received") === "1";
+    const rows = await sql(
+      `update purchases set buyer_received = $3
+       where id = $1 and buyer_user_id = $2 and buyer_purged = false
+       returning id`,
+      [purchaseId, user.id, received],
+    );
+    if (!rows.length) return { error: "Not your purchase." };
+    await touchLastActive(user.id);
+    revalidatePath("/bought");
+    return { ok: received ? "Marked received." : "Cleared received." };
+  } catch {
+    return { error: "Could not update received." };
   }
 }
 
@@ -335,16 +412,31 @@ export async function markPurchased(
       list_id: string;
       quantity: number | null;
       restricted: boolean;
-    }>("select id, list_id, quantity, restricted from items where id = $1", [
-      itemId,
-    ]);
+      deleted: boolean;
+      display_date: string | null;
+    }>(
+      `select id, list_id, quantity, restricted, deleted,
+              display_date::text as display_date
+       from items where id = $1`,
+      [itemId],
+    );
     if (!items.length) return { error: "Item not found." };
     const item = items[0];
 
     await requireListViewer(item.list_id, user.id);
 
-    if (await isListOwner(item.list_id, user.id)) {
-      return { error: "You cannot mark items on your own list as purchased." };
+    if (await hidesPurchaseSpoilers(item.list_id, user.id)) {
+      return {
+        error:
+          "You cannot mark items purchased on a list you own or help edit.",
+      };
+    }
+
+    // Same visibility rules as listVisibleItems for shoppers.
+    if (item.deleted) return { error: "Item not found." };
+    if (item.display_date) {
+      const today = new Date().toISOString().slice(0, 10);
+      if (item.display_date > today) return { error: "Item not found." };
     }
 
     if (item.restricted) {
@@ -356,11 +448,13 @@ export async function markPurchased(
     }
 
     const result = await withTransaction(async (query) => {
-      const locked = await query<{ quantity: number | null }>(
-        "select quantity from items where id = $1 for update",
+      const locked = await query<{ quantity: number | null; deleted: boolean }>(
+        "select quantity, deleted from items where id = $1 for update",
         [itemId],
       );
-      if (!locked.length) return { error: "Item not found." } as const;
+      if (!locked.length || locked[0].deleted) {
+        return { error: "Item not found." } as const;
+      }
 
       const purchased = await query<{ total: number }>(
         `select coalesce(sum(quantity), 0)::int as total from purchases where item_id = $1`,
@@ -389,6 +483,7 @@ export async function markPurchased(
       return { ok: "Marked as purchased." } as const;
     });
 
+    if (result.ok) await touchLastActive(user.id);
     await revalidateList(item.list_id);
     return result;
   } catch (e) {
@@ -416,8 +511,7 @@ export async function unpurchase(
     );
     if (!items.length) return { error: "Item not found." };
 
-    const owners = await getListOwnerIds(items[0].list_id);
-    if (owners.includes(user.id)) {
+    if (await hidesPurchaseSpoilers(items[0].list_id, user.id)) {
       return { error: "Not allowed." };
     }
 
@@ -427,6 +521,7 @@ export async function unpurchase(
       "delete from purchases where item_id = $1 and buyer_user_id = $2",
       [itemId, user.id],
     );
+    await touchLastActive(user.id);
     await revalidateList(items[0].list_id);
     return { ok: "Purchase cleared." };
   } catch {

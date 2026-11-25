@@ -4,7 +4,13 @@ import { useState, useTransition } from "react";
 import { acceptListInviteToken } from "@/app/actions/access";
 import { Flash } from "@/components/flash";
 
-export function AcceptInviteButton({ token }: { token: string }) {
+export function AcceptInviteButton({
+  token,
+  csrf,
+}: {
+  token: string;
+  csrf: string;
+}) {
   const [error, setError] = useState<string | undefined>();
   const [pending, start] = useTransition();
 
@@ -17,7 +23,7 @@ export function AcceptInviteButton({ token }: { token: string }) {
         disabled={pending}
         onClick={() => {
           start(async () => {
-            const res = await acceptListInviteToken(token);
+            const res = await acceptListInviteToken(token, csrf);
             if (res?.error) setError(res.error);
           });
         }}

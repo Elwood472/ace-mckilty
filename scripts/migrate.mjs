@@ -9,13 +9,17 @@ if (url === "" || files.length === 0) {
   console.log("migrate: nothing to do");
   process.exit(0);
 }
-const client = new pg.Client({
-  connectionString: process.env.DATABASE_URL_UNPOOLED?.trim() || url,
-});
+const conn = process.env.DATABASE_URL_UNPOOLED?.trim() || url;
+const client = new pg.Client({ connectionString: conn });
 await client.connect();
 try {
   await client.query("set lock_timeout = '60s'");
   await client.query("select pg_advisory_lock(7272741)");
+  try {
+    await client.query("create extension if not exists pgcrypto");
+  } catch (e) {
+    console.warn("migrate: pgcrypto skipped", e instanceof Error ? e.message : e);
+  }
   await client.query(
     "create table if not exists schema_migrations (name text primary key, applied_at timestamptz not null default now())",
   );

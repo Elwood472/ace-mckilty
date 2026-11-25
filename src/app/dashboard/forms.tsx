@@ -1,12 +1,10 @@
 "use client";
 
-import Link from "next/link";
-import { useActionState, useState, useTransition } from "react";
+import { useActionState, useEffect, useState } from "react";
 import {
   createListEmailInvite,
   decideAccessRequest,
-  requestListAccess,
-  searchPeopleAction,
+  requestListAccessByEmail,
   type ActionState,
 } from "@/app/actions/access";
 import { createTogetherList } from "@/app/actions/lists";
@@ -14,6 +12,32 @@ import { CsrfField } from "@/components/csrf-field";
 import { Flash } from "@/components/flash";
 
 const initial: ActionState = {};
+
+const HOME_INVITE_FLASH_KEY = "ace-home-invite-flash";
+
+function readHomeInviteFlash(): { ok?: string; error?: string } {
+  if (typeof window === "undefined") return {};
+  try {
+    const raw = sessionStorage.getItem(HOME_INVITE_FLASH_KEY);
+    if (!raw) return {};
+    const parsed = JSON.parse(raw) as { ok?: string; error?: string };
+    return {
+      ok: typeof parsed.ok === "string" ? parsed.ok : undefined,
+      error: typeof parsed.error === "string" ? parsed.error : undefined,
+    };
+  } catch {
+    return {};
+  }
+}
+
+function writeHomeInviteFlash(next: { ok?: string; error?: string }) {
+  try {
+    if (!next.ok && !next.error) sessionStorage.removeItem(HOME_INVITE_FLASH_KEY);
+    else sessionStorage.setItem(HOME_INVITE_FLASH_KEY, JSON.stringify(next));
+  } catch {
+    /* ignore quota / private mode */
+  }
+}
 
 export function InviteMyListForm({
   csrf,
@@ -23,11 +47,35 @@ export function InviteMyListForm({
   listId: string;
 }) {
   const [state, action, pending] = useActionState(createListEmailInvite, initial);
+  // Survive dashboard remounts so the green “Invite emailed to …” stays visible.
+  const [flash, setFlash] = useState<{ ok?: string; error?: string }>({});
+  useEffect(() => {
+    setFlash(readHomeInviteFlash());
+  }, []);
+  useEffect(() => {
+    if (state.ok) {
+      const next = { ok: state.ok };
+      setFlash(next);
+      writeHomeInviteFlash(next);
+    } else if (state.error) {
+      const next = { error: state.error };
+      setFlash(next);
+      writeHomeInviteFlash(next);
+    }
+  }, [state.ok, state.error]);
+
   return (
-    <form action={action} className="space-y-2">
+    <form
+      action={action}
+      className="space-y-2"
+      onSubmit={() => {
+        setFlash({});
+        writeHomeInviteFlash({});
+      }}
+    >
       <CsrfField token={csrf} />
       <input type="hidden" name="listId" value={listId} />
-      <Flash error={state.error} ok={state.ok} />
+      <Flash error={flash.error} ok={flash.ok} />
       <label className="label" htmlFor="invite-email">
         Friend&apos;s email
       </label>
@@ -42,97 +90,45 @@ export function InviteMyListForm({
       <button type="submit" className="btn btn-primary" disabled={pending}>
         {pending ? "Sending…" : "Email invite link"}
       </button>
+      <p style={{ fontSize: 12, color: "#555", margin: 0 }}>
+        Sends an email with an invite link. Look for the green confirmation
+        above when it goes out.
+      </p>
     </form>
   );
 }
 
-type Hit = {
-  id: string;
-  display_name: string;
-  email: string;
-  personal_list_id: string | null;
-  has_access: boolean;
-  pending_request: boolean;
-};
-
-export function SearchPeoplePanel({ csrf }: { csrf: string }) {
-  const [q, setQ] = useState("");
-  const [hits, setHits] = useState<Hit[]>([]);
-  const [pending, start] = useTransition();
-  const [reqState, reqAction, reqPending] = useActionState(
-    requestListAccess,
+export function FindByEmailForm({ csrf }: { csrf: string }) {
+  const [state, action, pending] = useActionState(
+    requestListAccessByEmail,
     initial,
   );
 
   return (
-    <div>
-      <label className="label" htmlFor="people-q">
-        Search by name or email
+    <form action={action} className="space-y-2">
+      <CsrfField token={csrf} />
+      <Flash error={state.error} ok={state.ok} />
+      <label className="label" htmlFor="find-email">
+        Their email (exact match)
       </label>
       <input
-        id="people-q"
+        id="find-email"
+        name="email"
+        type="email"
         className="field"
-        value={q}
-        placeholder="Start typing…"
-        onChange={(e) => {
-          const v = e.target.value;
-          setQ(v);
-          start(async () => {
-            if (v.trim().length < 2) {
-              setHits([]);
-              return;
-            }
-            setHits(await searchPeopleAction(v));
-          });
-        }}
+        required
+        placeholder="friend@example.com"
+        autoComplete="email"
       />
-      {pending ? (
-        <p style={{ fontSize: 12, color: "#555" }}>Searching…</p>
-      ) : null}
-      <Flash error={reqState.error} ok={reqState.ok} />
-      <ul style={{ listStyle: "none", padding: 0, margin: "8px 0 0" }}>
-        {hits.map((h) => (
-          <li
-            key={h.id}
-            style={{
-              display: "flex",
-              gap: 8,
-              alignItems: "center",
-              justifyContent: "space-between",
-              padding: "6px 0",
-              borderBottom: "1px solid #eee",
-            }}
-          >
-            <div>
-              <Link href={`/profile/${h.id}`} style={{ fontWeight: 600 }}>
-                {h.display_name}
-              </Link>
-              <div style={{ fontSize: 12, color: "#555" }}>{h.email}</div>
-            </div>
-            <div>
-              {h.has_access && h.personal_list_id ? (
-                <Link href={`/lists/${h.personal_list_id}`} className="btn">
-                  Open list
-                </Link>
-              ) : h.pending_request ? (
-                <span style={{ fontSize: 12, color: "#555" }}>Pending</span>
-              ) : h.personal_list_id ? (
-                <form action={reqAction}>
-                  <CsrfField token={csrf} />
-                  <input type="hidden" name="listId" value={h.personal_list_id} />
-                  <input type="hidden" name="ownerUserId" value={h.id} />
-                  <button type="submit" className="btn" disabled={reqPending}>
-                    Request access
-                  </button>
-                </form>
-              ) : (
-                <span style={{ fontSize: 12, color: "#555" }}>No list</span>
-              )}
-            </div>
-          </li>
-        ))}
-      </ul>
-    </div>
+      <button type="submit" className="btn btn-primary" disabled={pending}>
+        {pending ? "Sending…" : "Request access"}
+      </button>
+      <p style={{ fontSize: 12, color: "#555", margin: 0 }}>
+        Exact email only — no name search. We won&apos;t say whether that email
+        has an account; if it does, they must approve your request. Lists you
+        already can view stay on Home.
+      </p>
+    </form>
   );
 }
 

@@ -3,9 +3,14 @@ import { notFound, redirect } from "next/navigation";
 import { SiteHeader } from "@/components/site-header";
 import { ensureCsrfToken } from "@/lib/csrf";
 import { sql } from "@/lib/db";
-import { getCurrentUser } from "@/lib/session";
-import { canViewList, isListOwner } from "@/lib/authz";
-import { categoryToc, listVisibleItems } from "@/lib/items";
+import { requireAppUser } from "@/lib/session";
+import {
+  canEditListItems,
+  canViewList,
+  hidesPurchaseSpoilers,
+  isListOwner,
+} from "@/lib/authz";
+import { categoryToc, listVisibleItems, listVisibleSources } from "@/lib/items";
 import { formatMd } from "@/lib/dates";
 import type { SortDir, SortKey } from "@/lib/types";
 import { ItemTable, ListFilters } from "./list-client";
@@ -13,6 +18,7 @@ import {
   DecideRequestForm,
   InviteForm,
   RevokeAccessForm,
+  SetAccessRoleForm,
 } from "./sharing-forms";
 
 type Props = {
@@ -28,8 +34,7 @@ function one(v: string | string[] | undefined): string {
 export default async function ListPage({ params, searchParams }: Props) {
   const { listId } = await params;
   const sp = await searchParams;
-  const user = await getCurrentUser();
-  if (!user) redirect("/login");
+  const user = await requireAppUser();
   if (!(await canViewList(listId, user.id))) notFound();
 
   const lists = await sql<{
@@ -55,11 +60,18 @@ export default async function ListPage({ params, searchParams }: Props) {
   );
 
   const owner = await isListOwner(listId, user.id);
+  const canEdit = await canEditListItems(listId, user.id);
+  const hidePurchases = await hidesPurchaseSpoilers(listId, user.id);
   const csrf = await ensureCsrfToken();
 
   const viewers = owner
-    ? await sql<{ id: string; display_name: string; email: string }>(
-        `select u.id, u.display_name, u.email
+    ? await sql<{
+        id: string;
+        display_name: string;
+        email: string;
+        role: string;
+      }>(
+        `select u.id, u.display_name, u.email, a.role
          from list_access a
          join users u on u.id = a.user_id
          where a.list_id = $1
@@ -90,10 +102,27 @@ export default async function ListPage({ params, searchParams }: Props) {
         token: string;
         created_at: string;
       }>(
-        `select email, token, created_at::text as created_at
-         from list_invites
-         where list_id = $1 and accepted_at is null and expires_at > now()
-         order by created_at desc
+        `select i.email, i.token, i.created_at::text as created_at
+         from list_invites i
+         where i.list_id = $1
+           and i.accepted_at is null
+           and i.expires_at > now()
+           -- Hide invites for people who already own or can view this list.
+           and not exists (
+             select 1 from wish_list_owners o
+             join users u on u.id = o.user_id
+             where o.list_id = i.list_id
+               and i.email is not null
+               and lower(u.email) = lower(i.email)
+           )
+           and not exists (
+             select 1 from list_access a
+             join users u on u.id = a.user_id
+             where a.list_id = i.list_id
+               and i.email is not null
+               and lower(u.email) = lower(i.email)
+           )
+         order by i.created_at desc
          limit 8`,
         [listId],
       )
@@ -123,14 +152,7 @@ export default async function ListPage({ params, searchParams }: Props) {
     source: source || null,
   });
   const toc = await categoryToc(listId, user.id);
-
-  const sourceRows = await sql<{ source: string }>(
-    `select distinct source from items
-     where list_id = $1 and deleted = false and source <> ''
-     order by source`,
-    [listId],
-  );
-  const sources = sourceRows.map((r) => r.source);
+  const sources = await listVisibleSources(listId, user.id);
 
   return (
     <>
@@ -138,12 +160,6 @@ export default async function ListPage({ params, searchParams }: Props) {
       <main className="site-main">
         <p>
           <Link href="/dashboard">← Home</Link>
-          {owner ? (
-            <>
-              {" · "}
-              <Link href={`/lists/${listId}/add`}>Add a gift</Link>
-            </>
-          ) : null}
         </p>
         <h1 className="brand-title" style={{ fontSize: 22, marginTop: 8 }}>
           {list.title}
@@ -154,8 +170,24 @@ export default async function ListPage({ params, searchParams }: Props) {
           {list.anniversary ? ` · Anniversary ${formatMd(list.anniversary)}` : ""}
           {owner
             ? " · You own this list (purchase status is hidden from you)"
-            : ""}
+            : canEdit
+              ? " · You help edit this list (purchase status is hidden from you)"
+              : ""}
         </p>
+        {canEdit ? (
+          <p style={{ marginTop: 10, marginBottom: 0 }}>
+            <Link
+              href={`/lists/${listId}/add`}
+              className="btn btn-primary"
+              style={{ textDecoration: "none" }}
+            >
+              Add a gift
+            </Link>
+            <span style={{ marginLeft: 14, fontSize: 12, color: "#666" }}>
+              <Link href="/removed">Removed gifts</Link>
+            </span>
+          </p>
+        ) : null}
 
         <div style={{ display: "flex", gap: 20, flexWrap: "wrap", marginTop: 14 }}>
           <div style={{ flex: "1 1 560px" }}>
@@ -210,7 +242,8 @@ export default async function ListPage({ params, searchParams }: Props) {
               <div className="panel-head">Gifts</div>
               <ItemTable
                 items={items}
-                owner={owner}
+                canEdit={canEdit}
+                hidePurchases={hidePurchases}
                 csrf={csrf}
                 listId={listId}
                 sort={sort}
@@ -264,6 +297,10 @@ export default async function ListPage({ params, searchParams }: Props) {
               <div className="panel">
                 <div className="panel-head">Who can view</div>
                 <div style={{ padding: 10 }}>
+                  <p style={{ margin: "0 0 8px", fontSize: 12, color: "#555" }}>
+                    Shoppers see purchase status. Editors can add/edit/remove
+                    gifts but never see what was bought.
+                  </p>
                   {viewers.length === 0 ? (
                     <p style={{ margin: 0, fontSize: 13, color: "#555" }}>
                       Nobody yet — invite or approve a request.
@@ -273,8 +310,20 @@ export default async function ListPage({ params, searchParams }: Props) {
                       <tbody>
                         {viewers.map((v) => (
                           <tr key={v.id}>
-                            <td>{v.display_name}</td>
                             <td>
+                              <div>{v.display_name}</div>
+                              <div style={{ fontSize: 11, color: "#666" }}>
+                                {v.role === "editor" ? "Editor" : "Shopper"}
+                              </div>
+                            </td>
+                            <td style={{ whiteSpace: "nowrap" }}>
+                              <SetAccessRoleForm
+                                csrf={csrf}
+                                listId={listId}
+                                userId={v.id}
+                                role={v.role === "editor" ? "editor" : "viewer"}
+                              />
+                              {" · "}
                               <RevokeAccessForm
                                 csrf={csrf}
                                 listId={listId}

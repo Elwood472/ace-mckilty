@@ -3,17 +3,16 @@ import { notFound, redirect } from "next/navigation";
 import { SiteHeader } from "@/components/site-header";
 import { ensureCsrfToken } from "@/lib/csrf";
 import { sql } from "@/lib/db";
-import { getCurrentUser } from "@/lib/session";
-import { isListOwner } from "@/lib/authz";
+import { requireAppUser } from "@/lib/session";
+import { canEditListItems } from "@/lib/authz";
 import { AddItemForm } from "../list-client";
 
 type Props = { params: Promise<{ listId: string }> };
 
 export default async function AddGiftPage({ params }: Props) {
   const { listId } = await params;
-  const user = await getCurrentUser();
-  if (!user) redirect("/login");
-  if (!(await isListOwner(listId, user.id))) notFound();
+  const user = await requireAppUser();
+  if (!(await canEditListItems(listId, user.id))) notFound();
 
   const lists = await sql<{ id: string; title: string }>(
     "select id, title from wish_lists where id = $1",

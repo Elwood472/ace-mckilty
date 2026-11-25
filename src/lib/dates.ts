@@ -36,6 +36,21 @@ export function formatMdY(isoDate: string | null | undefined): string {
   return `${m}/${d}/${y}`;
 }
 
+/** Date + time for admin activity (America/New_York). */
+export function formatMdYTime(isoDate: string | null | undefined): string {
+  if (!isoDate) return "—";
+  const when = new Date(isoDate);
+  if (Number.isNaN(when.getTime())) return formatMdY(isoDate);
+  return new Intl.DateTimeFormat("en-US", {
+    timeZone: "America/New_York",
+    month: "numeric",
+    day: "numeric",
+    year: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+  }).format(when);
+}
+
 /** Recent activity cue like the old site: red+bold ≤2 days, bold ≤4 days. */
 export function activityClass(isoDate: string | null | undefined, from = new Date()): string {
   if (!isoDate) return "";

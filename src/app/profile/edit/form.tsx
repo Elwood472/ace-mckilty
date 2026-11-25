@@ -1,9 +1,18 @@
 "use client";
 
-import { useActionState, useState, type CSSProperties } from "react";
+import {
+  useActionState,
+  useState,
+  type CSSProperties,
+  type FormEvent,
+} from "react";
 import { updateProfile, type ActionState } from "@/app/actions/profile";
 import { CsrfField } from "@/components/csrf-field";
 import { Flash } from "@/components/flash";
+import {
+  PROFILE_PHOTO_MAX_BYTES,
+  PROFILE_PHOTO_MAX_LABEL,
+} from "@/lib/profile-photo-limits";
 import {
   PROFILE_ENTERTAINMENT,
   PROFILE_FOOD,
@@ -151,9 +160,42 @@ export function ProfileEditForm({
 }) {
   const [state, action, pending] = useActionState(updateProfile, initial);
   const [tab, setTab] = useState<TabId>("basics");
+  const [photoError, setPhotoError] = useState<string | undefined>();
+
+  const currentPhoto = data.picture_url?.trim() || "";
+  const flashError = photoError || state.error;
+
+  function checkPhotoFile(file: File | null | undefined): string | undefined {
+    if (!file || file.size <= 0) return undefined;
+    if (file.size > PROFILE_PHOTO_MAX_BYTES) {
+      return `That photo is too big. Choose a file ${PROFILE_PHOTO_MAX_LABEL} or smaller.`;
+    }
+    return undefined;
+  }
+
+  function onPhotoChange(file: File | null | undefined) {
+    setPhotoError(checkPhotoFile(file));
+  }
+
+  function onSubmit(e: FormEvent<HTMLFormElement>) {
+    const input = e.currentTarget.elements.namedItem(
+      "pictureFile",
+    ) as HTMLInputElement | null;
+    const err = checkPhotoFile(input?.files?.[0]);
+    if (err) {
+      e.preventDefault();
+      setPhotoError(err);
+      setTab("basics");
+    }
+  }
 
   return (
-    <form action={action} style={{ maxWidth: 720, marginTop: 12 }}>
+    <form
+      action={action}
+      encType="multipart/form-data"
+      onSubmit={onSubmit}
+      style={{ maxWidth: 720, marginTop: 12 }}
+    >
       <CsrfField token={csrf} />
 
       {/* Sticky save + tabs — visible without scrolling */}
@@ -170,7 +212,7 @@ export function ProfileEditForm({
           <button type="submit" className="btn btn-primary" disabled={pending}>
             {pending ? "Saving…" : "Save profile"}
           </button>
-          <Flash error={state.error} ok={state.ok} />
+          <Flash error={flashError} ok={photoError ? undefined : state.ok} />
         </div>
         <div style={tabRowStyle} role="tablist" aria-label="Profile sections">
           {TABS.map((t) => (
@@ -223,6 +265,13 @@ export function ProfileEditForm({
               defaultValue={data.birthday?.slice(0, 10) ?? ""}
             />
             <Field
+              label="Current password"
+              name="currentPassword"
+              type="password"
+              defaultValue=""
+              hint="Required only when changing password"
+            />
+            <Field
               label="New password"
               name="password"
               type="password"
@@ -240,11 +289,54 @@ export function ProfileEditForm({
 
         <div className="panel-head">Photo</div>
         <div style={{ padding: 16 }}>
+          {currentPhoto ? (
+            <div style={{ marginBottom: 12 }}>
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={currentPhoto}
+                alt=""
+                width={160}
+                style={{
+                  maxWidth: "100%",
+                  border: "1px solid #ccc",
+                  display: "block",
+                }}
+              />
+              <label
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 6,
+                  marginTop: 8,
+                  fontSize: 13,
+                }}
+              >
+                <input type="checkbox" name="removePicture" />
+                Remove current photo
+              </label>
+            </div>
+          ) : null}
+          <label style={{ display: "block", marginBottom: 14 }}>
+            <span className="label">Upload photo</span>
+            <input
+              id="pictureFile"
+              className="field"
+              name="pictureFile"
+              type="file"
+              accept="image/jpeg,image/png,image/webp,image/gif"
+              onChange={(e) => onPhotoChange(e.target.files?.[0])}
+            />
+            <span
+              style={{ display: "block", marginTop: 4, fontSize: 11, color: "#555" }}
+            >
+              JPEG, PNG, WebP, or GIF — up to {PROFILE_PHOTO_MAX_LABEL}
+            </span>
+          </label>
           <Field
-            label="Picture URL"
+            label="Or picture URL"
             name="pictureUrl"
             defaultValue={data.picture_url}
-            hint="Paste a link to an image"
+            hint="Optional if you upload a file. Paste a public http(s) image link."
           />
           <Field label="Caption" name="caption" defaultValue={data.caption} />
         </div>
